@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Block</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <canvas id="game-canvas" aria-label="3D Block game"></canvas>
+    <button class="game-settings-button" id="game-settings-button" type="button" aria-label="Open settings" hidden>
+      &#9881;
+    </button>
+    <button class="game-pause-button" id="game-pause-button" type="button" aria-label="Pause" hidden>
+      II
+    </button>
+
+    <main class="start-screen" id="start-screen" aria-label="Start screen">
+      <div class="start-panel">
+        <h1>3D Block</h1>
+        <p class="subtitle" data-i18n="subtitle">一个 3D 方块游戏。</p>
+
+        <div class="menu-actions">
+          <button class="primary-button" id="start-button" type="button" data-i18n="startGame">
+            开始游戏
+          </button>
+          <button class="ghost-button" id="settings-button" type="button" data-i18n="settings">
+            设置
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <div class="modal-backdrop" id="pause-modal" hidden>
+      <section class="pause-modal" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+        <h2 id="pause-title" data-i18n="pauseTitle">暂停</h2>
+        <div class="pause-actions">
+          <button class="primary-button" id="resume-button" type="button" data-i18n="resumeGame">
+            继续
+          </button>
+          <button class="ghost-button" id="quit-button" type="button" data-i18n="quitToMenu">
+            退出到主界面
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="settings-modal" hidden>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="modal-header">
+          <h2 id="settings-title" data-i18n="settingsTitle">设置</h2>
+          <button class="icon-button" id="close-settings-button" type="button" aria-label="Close settings">
+            X
+          </button>
+        </div>
+
+        <div class="setting-row">
+          <label for="language-select" data-i18n="language">语言</label>
+          <select id="language-select">
+            <option value="zh">zh</option>
+            <option value="en">en</option>
+          </select>
+        </div>
+
+        <div class="keybinds" aria-label="Key bindings">
+          <h3 data-i18n="keybinds">键位</h3>
+
+          <div class="keybind-row">
+            <span data-i18n="moveForward">前进</span>
+            <button class="keybind-button" type="button" data-action="moveForward">W</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="moveBackward">后退</span>
+            <button class="keybind-button" type="button" data-action="moveBackward">S</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="moveLeft">左移</span>
+            <button class="keybind-button" type="button" data-action="moveLeft">A</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="moveRight">右移</span>
+            <button class="keybind-button" type="button" data-action="moveRight">D</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="jump">跳跃</span>
+            <button class="keybind-button" type="button" data-action="jump">Space</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="switchTopView">切到俯视</span>
+            <button class="keybind-button" type="button" data-action="switchTopView">Q</button>
+          </div>
+          <div class="keybind-row">
+            <span data-i18n="switchSideView">切到侧视</span>
+            <button class="keybind-button" type="button" data-action="switchSideView">E</button>
+          </div>
+        </div>
+
+        <p class="modal-hint" id="keybind-hint" data-i18n="keybindHint">
+          点击一个键位按钮，然后按下新的按键。
+        </p>
+      </section>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
