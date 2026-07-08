@@ -131,8 +131,8 @@ loadSettings();
 
 // ===== Three.js 场景初始化 =====
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf7fafc);
-scene.fog = new THREE.Fog(0xf7fafc, 24, 68);
+scene.background = new THREE.Color(0xffffff);
+scene.fog = new THREE.Fog(0xffffff, 24, 72);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 camera.position.set(0, 0, 18);
@@ -140,24 +140,26 @@ camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0xffffff, 1);
 renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const ambientLight = new THREE.HemisphereLight(0xffffff, 0xdfe7ef, 1.45);
 scene.add(ambientLight);
 
+const shadowLightOffset = new THREE.Vector3(-18, 22, 32);
+const shadowPlaneBaseSize = { width: 220, height: 96 };
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
-keyLight.position.set(-10, 12, 18);
+const keyLightTarget = new THREE.Object3D();
+keyLight.position.copy(shadowLightOffset);
 keyLight.castShadow = false;
 keyLight.shadow.mapSize.set(2048, 2048);
-keyLight.shadow.camera.left = -90;
-keyLight.shadow.camera.right = 90;
-keyLight.shadow.camera.top = 52;
-keyLight.shadow.camera.bottom = -52;
 keyLight.shadow.camera.near = 1;
-keyLight.shadow.camera.far = 120;
+keyLight.shadow.camera.far = 180;
 keyLight.shadow.bias = -0.0003;
+keyLight.target = keyLightTarget;
 scene.add(keyLight);
+scene.add(keyLightTarget);
 
 // ===== 玩家与地图材质 =====
 const player = {
@@ -177,8 +179,8 @@ const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughnes
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });
 const backLineMaterial = new THREE.LineBasicMaterial({ color: 0x243346, transparent: true, opacity: 0.5 });
 const shadowPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(220, 96),
-  new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.22 }),
+  new THREE.PlaneGeometry(shadowPlaneBaseSize.width, shadowPlaneBaseSize.height),
+  new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.34 }),
 );
 const sideGuideLines = [];
 
@@ -289,6 +291,7 @@ function buildMap(mapData) {
     });
   });
 
+  updateShadowLayout();
   updateViewPresentation();
 }
 
@@ -516,6 +519,55 @@ function updateViewHelpers() {
 function updateViewPresentation() {
   updateViewHelpers();
   updateShadowMode(viewMode === viewModes.TOP);
+}
+
+function updateShadowLayout() {
+  if (levelBlocks.length === 0) {
+    return;
+  }
+
+  const bounds = levelBlocks.reduce(
+    (result, block) => ({
+      left: Math.min(result.left, block.x - block.w / 2),
+      right: Math.max(result.right, block.x + block.w / 2),
+      bottom: Math.min(result.bottom, block.y - block.h / 2),
+      top: Math.max(result.top, block.y + block.h / 2),
+    }),
+    {
+      left: Infinity,
+      right: -Infinity,
+      bottom: Infinity,
+      top: -Infinity,
+    },
+  );
+  const centerX = (bounds.left + bounds.right) / 2;
+  const centerY = (bounds.bottom + bounds.top) / 2;
+  const layoutWidth = Math.max(bounds.right - bounds.left + 36, 96);
+  const layoutHeight = Math.max(bounds.top - bounds.bottom + 36, 72);
+  const shadowCameraSize = Math.max(layoutWidth, layoutHeight) * 1.45;
+
+  shadowPlane.position.set(centerX, centerY, -3.4);
+  shadowPlane.scale.set(
+    layoutWidth / shadowPlaneBaseSize.width,
+    layoutHeight / shadowPlaneBaseSize.height,
+    1,
+  );
+
+  keyLightTarget.position.set(centerX, centerY, 0);
+  keyLight.position.set(
+    centerX + shadowLightOffset.x,
+    centerY + shadowLightOffset.y,
+    shadowLightOffset.z,
+  );
+
+  keyLight.shadow.camera.left = -shadowCameraSize / 2;
+  keyLight.shadow.camera.right = shadowCameraSize / 2;
+  keyLight.shadow.camera.top = shadowCameraSize / 2;
+  keyLight.shadow.camera.bottom = -shadowCameraSize / 2;
+  keyLight.shadow.camera.far = Math.max(180, shadowCameraSize + shadowLightOffset.length());
+  keyLight.target.updateMatrixWorld();
+  keyLight.shadow.camera.updateProjectionMatrix();
+  keyLight.shadow.needsUpdate = true;
 }
 
 function updateShadowMode(isEnabled) {

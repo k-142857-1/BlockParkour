@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: dark;
-  --bg: #f7fafc;
+  --bg: #ffffff;
   --panel: rgba(17, 22, 30, 0.82);
   --panel-border: rgba(255, 255, 255, 0.14);
   --text: #f7fbff;
@@ -41,8 +41,8 @@ button {
   padding: 32px;
   z-index: 10;
   background:
-    linear-gradient(90deg, rgba(6, 9, 15, 0.88), rgba(6, 9, 15, 0.36)),
-    radial-gradient(circle at 72% 40%, rgba(87, 214, 255, 0.18), transparent 34%);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.46)),
+    radial-gradient(circle at 72% 40%, rgba(87, 214, 255, 0.16), transparent 34%);
 }
 
 .start-screen.is-hidden {
