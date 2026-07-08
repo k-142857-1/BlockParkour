@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="3D Block">
-  <rect width="64" height="64" rx="14" fill="#0c0f14" />
-  <path d="M11 23h12M8 32h16M14 41h10" fill="none" stroke="#57d6ff" stroke-width="4" stroke-linecap="round" opacity=".55" />
-  <path d="M29 14h19v19H29z" fill="#ffcf56" />
-  <path d="M48 14l7 6v19l-7-6z" fill="#c8891f" />
-  <path d="M29 33h19l7 6H36z" fill="#f0a82c" />
-  <path d="M29 14h19l7 6H36z" fill="#ffe38a" />
-  <rect x="11" y="44" width="42" height="10" rx="3" fill="#57d6ff" />
-  <path d="M16 44h32" stroke="#d4f7ff" stroke-width="3" stroke-linecap="round" />
+	<rect width="64" height="64" rx="14" fill="#0c0f14" />
+	<path d="M11 23h12M8 32h16M14 41h10" fill="none" stroke="#57d6ff" stroke-width="4" stroke-linecap="round" opacity=".55" />
+	<path d="M29 14h19v19H29z" fill="#ffcf56" />
+	<path d="M48 14l7 6v19l-7-6z" fill="#c8891f" />
+	<path d="M29 33h19l7 6H36z" fill="#f0a82c" />
+	<path d="M29 14h19l7 6H36z" fill="#ffe38a" />
+	<rect x="11" y="44" width="42" height="10" rx="3" fill="#57d6ff" />
+	<path d="M16 44h32" stroke="#d4f7ff" stroke-width="3" stroke-linecap="round" />
 </svg>
