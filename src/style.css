@@ -158,6 +158,41 @@ h1 {
 	right: 18px;
 }
 
+.gem-hud {
+	position: fixed;
+	right: 18px;
+	bottom: 18px;
+	z-index: 12;
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	padding: 10px;
+	border: 1px solid var(--panel-border);
+	border-radius: 8px;
+	background: rgba(17, 22, 30, 0.82);
+	box-shadow: 0 14px 38px rgba(0, 0, 0, 0.24);
+	color: var(--text);
+	backdrop-filter: blur(12px);
+}
+
+.gem-hud[hidden] {
+	display: none;
+}
+
+.gem-counter {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	min-width: 54px;
+	font-weight: 800;
+}
+
+.gem-counter img {
+	width: 28px;
+	height: 28px;
+	display: block;
+}
+
 .view-toast,
 .save-toast {
 	position: fixed;
@@ -237,8 +272,14 @@ h1 {
 	gap: 8px;
 }
 
-.saved-game-button {
-	width: 100%;
+.saved-game-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 44px;
+	gap: 8px;
+}
+
+.saved-game-button,
+.delete-save-button {
 	min-height: 54px;
 	border: 1px solid var(--panel-border);
 	border-radius: 8px;
@@ -246,10 +287,23 @@ h1 {
 	background: rgba(255, 255, 255, 0.07);
 	color: var(--text);
 	cursor: pointer;
+}
+
+.saved-game-button {
+	width: 100%;
 	text-align: left;
 }
 
-.saved-game-button:hover {
+.delete-save-button {
+	padding: 0;
+	color: var(--accent-strong);
+	font-size: 1.25rem;
+	font-weight: 800;
+	text-align: center;
+}
+
+.saved-game-button:hover,
+.delete-save-button:hover {
 	transform: translateY(-1px);
 }
 
@@ -411,5 +465,10 @@ select {
 	.save-toast {
 		top: 18px;
 		left: 18px;
+	}
+
+	.gem-hud {
+		right: 12px;
+		bottom: 12px;
 	}
 }

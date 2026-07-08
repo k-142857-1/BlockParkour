@@ -70,5 +70,31 @@
 			"h": 1,
 			"d": 5
 		}
+	],
+	"gems": [
+		{
+			"id": "side-to-top-1",
+			"type": "sideToTop",
+			"x": 3,
+			"y": 1.2
+		},
+		{
+			"id": "top-to-side-1",
+			"type": "topToSide",
+			"x": 10,
+			"y": 2.25
+		},
+		{
+			"id": "side-to-top-2",
+			"type": "sideToTop",
+			"x": 28,
+			"y": 3.1
+		},
+		{
+			"id": "top-to-side-2",
+			"type": "topToSide",
+			"x": 43,
+			"y": 1.2
+		}
 	]
 }
