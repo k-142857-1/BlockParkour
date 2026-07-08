@@ -16,7 +16,12 @@ const languageSelect = document.querySelector("#language-select");
 const keybindHint = document.querySelector("#keybind-hint");
 const keybindButtons = document.querySelectorAll(".keybind-button");
 const viewToast = document.querySelector("#view-toast");
+const saveToast = document.querySelector("#save-toast");
+const savePicker = document.querySelector("#save-picker");
+const newGameButton = document.querySelector("#new-game-button");
+const savedGameList = document.querySelector("#saved-game-list");
 const settingsStorageKey = "3d-block-settings";
+const progressStorageKey = "3d-block-progress-v1";
 
 // 界面文案集中放在这里，后面继续加语言时比较好维护。
 const translations = {
@@ -41,6 +46,12 @@ const translations = {
     waitingForKey: "请按下新的按键...",
     topViewHint: "已切换到俯视视角",
     sideViewHint: "已切换到侧视视角",
+    newGame: "新游戏",
+    savedGames: "保存的游戏",
+    saveLoaded: "已载入保存的游戏",
+    progressSaved: "进度已保存",
+    savedAt: "保存于",
+    progressLabel: "进度",
   },
   en: {
     subtitle: "A 3D block game.",
@@ -63,6 +74,12 @@ const translations = {
     waitingForKey: "Press a new key...",
     topViewHint: "Switched to top view",
     sideViewHint: "Switched to side view",
+    newGame: "New Game",
+    savedGames: "Saved Games",
+    saveLoaded: "Saved game loaded",
+    progressSaved: "Progress saved",
+    savedAt: "Saved",
+    progressLabel: "Progress",
   },
 };
 
@@ -103,6 +120,7 @@ const physics = {
   maxFallSpeed: -30,
 };
 const cameraDistance = 18;
+const progressAutoSaveInterval = 8000;
 
 // map.json 读取失败时使用这份备用地图，避免页面直接空白。
 const fallbackMap = {
@@ -126,6 +144,9 @@ let viewMode = viewModes.SIDE;
 let listeningAction = null;
 let lastTime = performance.now();
 let viewHintTimer = null;
+let saveHintTimer = null;
+let currentSaveId = null;
+let lastProgressSaveTime = performance.now();
 
 loadSettings();
 
@@ -147,7 +168,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const ambientLight = new THREE.HemisphereLight(0xffffff, 0xdfe7ef, 1.45);
 scene.add(ambientLight);
 
-const shadowLightOffset = new THREE.Vector3(-18, 22, 32);
+const shadowLightOffset = new THREE.Vector3(-7, 8, 44);
 const shadowPlaneBaseSize = { width: 220, height: 96 };
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
 const keyLightTarget = new THREE.Object3D();
@@ -184,7 +205,7 @@ const shadowPlane = new THREE.Mesh(
 );
 const sideGuideLines = [];
 
-shadowPlane.position.set(30, 2, -3.4);
+shadowPlane.position.set(30, 2, -2.8);
 shadowPlane.receiveShadow = false;
 shadowPlane.visible = false;
 scene.add(shadowPlane);
@@ -213,7 +234,8 @@ animate();
 
 // ===== UI 事件绑定 =====
 function bindUi() {
-  startButton.addEventListener("click", startGame);
+  startButton.addEventListener("click", handleStartButtonClick);
+  newGameButton.addEventListener("click", startNewGame);
   settingsButton.addEventListener("click", openSettings);
   gameSettingsButton.addEventListener("click", openSettings);
   gamePauseButton.addEventListener("click", pauseGame);
@@ -250,6 +272,11 @@ function bindUi() {
     pressedKeys.delete(key);
   });
   window.addEventListener("resize", resizeRenderer);
+  window.addEventListener("beforeunload", () => {
+    if (gameStarted) {
+      saveProgress({ showHint: false });
+    }
+  });
 }
 
 // ===== 地图加载与构建 =====
@@ -311,14 +338,58 @@ function getBlockMaterial(block) {
 }
 
 // ===== 游戏开始与玩家重置 =====
-function startGame() {
+function handleStartButtonClick() {
+  const savedGames = getSavedGames();
+
+  if (savedGames.length === 0) {
+    startNewGame();
+    return;
+  }
+
+  renderSavedGameList(savedGames);
+  savePicker.hidden = false;
+  newGameButton.focus();
+}
+
+function startNewGame() {
+  currentSaveId = getActiveSaveId();
+  viewMode = viewModes.SIDE;
+  closeSavePicker();
+  resetPlayer();
+  updateViewPresentation();
+  beginGame();
+  saveProgress({ showHint: false });
+}
+
+function startSavedGame(saveId) {
+  const save = getSavedGame(saveId);
+
+  if (!save) {
+    startNewGame();
+    return;
+  }
+
+  currentSaveId = save.id;
+  closeSavePicker();
+  applyProgressSave(save);
+  beginGame();
+  showSaveHint(translations[settings.language].saveLoaded);
+}
+
+function beginGame() {
   gameStarted = true;
   gamePaused = false;
+  lastProgressSaveTime = performance.now();
   startScreen.classList.add("is-hidden");
   gameSettingsButton.hidden = false;
   gamePauseButton.hidden = false;
   pauseModal.hidden = true;
   closeSettings();
+}
+
+function closeSavePicker() {
+  savePicker.hidden = true;
+  savedGameList.replaceChildren();
 }
 
 function resetPlayer() {
@@ -546,7 +617,7 @@ function updateShadowLayout() {
   const layoutHeight = Math.max(bounds.top - bounds.bottom + 36, 72);
   const shadowCameraSize = Math.max(layoutWidth, layoutHeight) * 1.45;
 
-  shadowPlane.position.set(centerX, centerY, -3.4);
+  shadowPlane.position.set(centerX, centerY, -2.8);
   shadowPlane.scale.set(
     layoutWidth / shadowPlaneBaseSize.width,
     layoutHeight / shadowPlaneBaseSize.height,
@@ -767,6 +838,7 @@ function togglePause() {
 }
 
 function quitToMainMenu() {
+  saveProgress({ showHint: true });
   gameStarted = false;
   gamePaused = false;
   pressedKeys.clear();
@@ -776,6 +848,7 @@ function quitToMainMenu() {
   startScreen.classList.remove("is-hidden");
   viewMode = viewModes.SIDE;
   hideViewHint();
+  closeSavePicker();
   updateViewPresentation();
   resetPlayer();
 }
@@ -795,6 +868,188 @@ function closeSettings() {
   keybindHint.textContent = translations[settings.language].keybindHint;
 }
 
+// ===== 进度存档 =====
+function getSaveStore() {
+  try {
+    const store = JSON.parse(localStorage.getItem(progressStorageKey) || "null");
+
+    if (store && typeof store === "object" && store.saves && typeof store.saves === "object") {
+      return store;
+    }
+  } catch {
+    localStorage.removeItem(progressStorageKey);
+  }
+
+  return { version: 1, saves: {} };
+}
+
+function writeSaveStore(store) {
+  localStorage.setItem(progressStorageKey, JSON.stringify(store));
+}
+
+function getSavedGames() {
+  return Object.values(getSaveStore().saves)
+    .filter((save) => save && typeof save.id === "string")
+    .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+}
+
+function getSavedGame(saveId) {
+  return getSaveStore().saves[saveId] || null;
+}
+
+function getActiveSaveId() {
+  if (typeof activeMap.id === "string" && activeMap.id.trim()) {
+    return activeMap.id.trim();
+  }
+
+  const mapSignature = JSON.stringify({
+    spawn: activeMap.spawn || fallbackMap.spawn,
+    blocks: activeMap.blocks || fallbackMap.blocks,
+  });
+
+  return `map-${hashString(mapSignature)}`;
+}
+
+function getActiveSaveName() {
+  return activeMap.name || activeMap.title || "3D Block";
+}
+
+function renderSavedGameList(savedGames = getSavedGames()) {
+  savedGameList.replaceChildren();
+
+  savedGames.forEach((save) => {
+    const button = document.createElement("button");
+    const title = document.createElement("span");
+    const meta = document.createElement("span");
+
+    button.type = "button";
+    button.className = "saved-game-button";
+    button.addEventListener("click", () => startSavedGame(save.id));
+
+    title.className = "saved-game-title";
+    title.textContent = save.mapName || "3D Block";
+
+    meta.className = "saved-game-meta";
+    meta.textContent = `${translations[settings.language].savedAt} ${formatSaveTime(save.savedAt)} · ${
+      translations[settings.language].progressLabel
+    } ${formatProgress(save)}`;
+
+    button.append(title, meta);
+    savedGameList.append(button);
+  });
+}
+
+function buildProgressSave() {
+  const position = player.mesh.position;
+  const velocity = player.velocity;
+
+  return {
+    id: currentSaveId || getActiveSaveId(),
+    mapName: getActiveSaveName(),
+    savedAt: Date.now(),
+    viewMode,
+    player: {
+      position: { x: position.x, y: position.y, z: position.z },
+      velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+      grounded: player.grounded,
+    },
+  };
+}
+
+function saveProgress({ showHint = true } = {}) {
+  if (!gameStarted) {
+    return false;
+  }
+
+  try {
+    const store = getSaveStore();
+    const save = buildProgressSave();
+
+    currentSaveId = save.id;
+    store.saves[save.id] = save;
+    writeSaveStore(store);
+
+    if (showHint) {
+      showSaveHint(translations[settings.language].progressSaved);
+    }
+
+    return true;
+  } catch (error) {
+    console.warn("Unable to save progress.", error);
+    return false;
+  }
+}
+
+function maybeAutoSaveProgress(time) {
+  if (time - lastProgressSaveTime < progressAutoSaveInterval) {
+    return;
+  }
+
+  if (saveProgress({ showHint: true })) {
+    lastProgressSaveTime = time;
+  }
+}
+
+function applyProgressSave(save) {
+  const position = save.player?.position;
+  const velocity = save.player?.velocity;
+
+  if (!position || !velocity) {
+    resetPlayer();
+    return;
+  }
+
+  viewMode = save.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE;
+  player.mesh.position.set(position.x, position.y, position.z ?? 0);
+  player.velocity.set(velocity.x || 0, velocity.y || 0, velocity.z || 0);
+  player.grounded = Boolean(save.player?.grounded);
+  player.jumpBufferTimer = 0;
+  player.coyoteTimer = 0;
+  updateViewPresentation();
+  centerCameraOnPlayer();
+}
+
+function showSaveHint(message) {
+  window.clearTimeout(saveHintTimer);
+  saveToast.textContent = message;
+  saveToast.hidden = false;
+  saveToast.classList.add("is-visible");
+
+  saveHintTimer = window.setTimeout(() => {
+    saveToast.classList.remove("is-visible");
+    saveHintTimer = window.setTimeout(() => {
+      saveToast.hidden = true;
+    }, 200);
+  }, 1200);
+}
+
+function formatSaveTime(savedAt) {
+  const date = new Date(savedAt || Date.now());
+  const locale = settings.language === "zh" ? "zh-CN" : "en";
+
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatProgress(save) {
+  const x = save.player?.position?.x;
+
+  return Number.isFinite(x) ? `${Math.max(0, Math.round(x))}m` : "-";
+}
+
+function hashString(value) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash).toString(36);
+}
+
 // ===== 语言与设置存储 =====
 function applyLanguage() {
   document.documentElement.lang = settings.language === "zh" ? "zh-CN" : "en";
@@ -804,6 +1059,10 @@ function applyLanguage() {
     const key = element.dataset.i18n;
     element.textContent = translations[settings.language][key];
   });
+
+  if (!savePicker.hidden) {
+    renderSavedGameList();
+  }
 }
 
 function loadSettings() {
@@ -877,6 +1136,7 @@ function animate(time = performance.now()) {
 
   if (gameStarted && !gamePaused && settingsModal.hidden) {
     updateGame(deltaTime);
+    maybeAutoSaveProgress(time);
   }
   updateViewHelpers();
   renderer.render(scene, camera);
