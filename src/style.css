@@ -158,8 +158,41 @@ h1 {
   right: 18px;
 }
 
+.view-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 13;
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  max-width: min(280px, calc(100vw - 128px));
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(17, 22, 30, 0.82);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-size: 0.94rem;
+  font-weight: 800;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translate(-50%, -8px);
+  opacity: 0;
+  backdrop-filter: blur(12px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.view-toast.is-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
 .game-settings-button[hidden],
-.game-pause-button[hidden] {
+.game-pause-button[hidden],
+.view-toast[hidden] {
   display: none;
 }
 
@@ -295,5 +328,10 @@ select {
   .primary-button,
   .ghost-button {
     width: 100%;
+  }
+
+  .view-toast {
+    top: 72px;
+    max-width: calc(100vw - 48px);
   }
 }
