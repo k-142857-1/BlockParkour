@@ -131,8 +131,8 @@ loadSettings();
 
 // ===== Three.js 场景初始化 =====
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0c0f14);
-scene.fog = new THREE.Fog(0x0c0f14, 18, 54);
+scene.background = new THREE.Color(0xf7fafc);
+scene.fog = new THREE.Fog(0xf7fafc, 24, 68);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 camera.position.set(0, 0, 18);
@@ -143,19 +143,20 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const ambientLight = new THREE.HemisphereLight(0xd8efff, 0x17100a, 1.65);
+const ambientLight = new THREE.HemisphereLight(0xffffff, 0xdfe7ef, 1.45);
 scene.add(ambientLight);
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 2);
-keyLight.position.set(-5, 8, 8);
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
+keyLight.position.set(-10, 12, 18);
 keyLight.castShadow = false;
-keyLight.shadow.mapSize.set(1024, 1024);
-keyLight.shadow.camera.left = -18;
-keyLight.shadow.camera.right = 18;
-keyLight.shadow.camera.top = 14;
-keyLight.shadow.camera.bottom = -14;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.left = -90;
+keyLight.shadow.camera.right = 90;
+keyLight.shadow.camera.top = 52;
+keyLight.shadow.camera.bottom = -52;
 keyLight.shadow.camera.near = 1;
-keyLight.shadow.camera.far = 40;
+keyLight.shadow.camera.far = 120;
+keyLight.shadow.bias = -0.0003;
 scene.add(keyLight);
 
 // ===== 玩家与地图材质 =====
@@ -175,7 +176,16 @@ scene.add(player.mesh);
 const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughness: 0.66 });
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });
 const backLineMaterial = new THREE.LineBasicMaterial({ color: 0x243346, transparent: true, opacity: 0.5 });
+const shadowPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(220, 96),
+  new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.22 }),
+);
 const sideGuideLines = [];
+
+shadowPlane.position.set(30, 2, -3.4);
+shadowPlane.receiveShadow = false;
+shadowPlane.visible = false;
+scene.add(shadowPlane);
 
 // 背景水平线只负责给侧视角一点速度感和空间参照。
 const clockLineGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -409,6 +419,7 @@ function updateGame(deltaTime) {
 function updateSideView(deltaTime) {
   const leftPressed = isActionPressed("moveLeft") || isActionPressed("moveBackward");
   const rightPressed = isActionPressed("moveRight") || isActionPressed("moveForward");
+  const jumpHeld = isActionPressed("jump");
   const horizontalInput = Number(rightPressed) - Number(leftPressed);
 
   if (player.grounded) {
@@ -417,7 +428,12 @@ function updateSideView(deltaTime) {
     player.coyoteTimer = Math.max(player.coyoteTimer - deltaTime, 0);
   }
 
-  player.jumpBufferTimer = Math.max(player.jumpBufferTimer - deltaTime, 0);
+  if (jumpHeld) {
+    player.jumpBufferTimer = physics.jumpBufferTime;
+  } else {
+    player.jumpBufferTimer = Math.max(player.jumpBufferTimer - deltaTime, 0);
+  }
+
   applySideHorizontalMovement(horizontalInput, deltaTime);
 
   if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
@@ -508,6 +524,8 @@ function updateShadowMode(isEnabled) {
   keyLight.castShadow = isEnabled;
   player.mesh.castShadow = isEnabled;
   player.mesh.receiveShadow = isEnabled;
+  shadowPlane.visible = isEnabled;
+  shadowPlane.receiveShadow = isEnabled;
 
   levelBlocks.forEach((block) => {
     block.mesh.castShadow = isEnabled;
