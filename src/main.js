@@ -87,6 +87,14 @@ const physics = {
   gravity: -26,
   jumpSpeed: 11.5,
   moveSpeed: 7.2,
+  groundAcceleration: 68,
+  groundDeceleration: 86,
+  airAcceleration: 28,
+  airTurnAcceleration: 42,
+  airDeceleration: 7,
+  jumpForwardMinSpeed: 4.6,
+  jumpBufferTime: 0.13,
+  coyoteTime: 0.1,
   maxFallSpeed: -30,
 };
 const cameraDistance = 18;
@@ -144,6 +152,8 @@ const player = {
   ),
   velocity: new THREE.Vector3(0, 0, 0),
   grounded: false,
+  jumpBufferTimer: 0,
+  coyoteTimer: 0,
 };
 player.mesh.castShadow = true;
 scene.add(player.mesh);
@@ -206,7 +216,11 @@ function bindUi() {
 
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", (event) => {
-    pressedKeys.delete(formatKey(event));
+    const key = formatKey(event);
+    if (gameStarted && isGameplayKey(key)) {
+      event.preventDefault();
+    }
+    pressedKeys.delete(key);
   });
   window.addEventListener("resize", resizeRenderer);
 }
@@ -285,6 +299,8 @@ function resetPlayer() {
   player.mesh.rotation.set(0, 0, 0);
   player.velocity.set(0, 0, 0);
   player.grounded = false;
+  player.jumpBufferTimer = 0;
+  player.coyoteTimer = 0;
   centerCameraOnPlayer();
 }
 
@@ -321,6 +337,10 @@ function handleKeyDown(event) {
 
   const key = formatKey(event);
 
+  if (isGameplayKey(key)) {
+    event.preventDefault();
+  }
+
   if (!event.repeat && key === settings.keybinds.switchTopView) {
     setViewMode(viewModes.TOP);
     return;
@@ -329,6 +349,10 @@ function handleKeyDown(event) {
   if (!event.repeat && key === settings.keybinds.switchSideView) {
     setViewMode(viewModes.SIDE);
     return;
+  }
+
+  if (!event.repeat && key === settings.keybinds.jump) {
+    player.jumpBufferTimer = physics.jumpBufferTime;
   }
 
   pressedKeys.add(key);
@@ -341,8 +365,10 @@ function setViewMode(nextMode) {
   }
 
   viewMode = nextMode;
+  player.jumpBufferTimer = 0;
+  player.coyoteTimer = 0;
 
-  if (viewMode === viewModes.TOP) {	
+  if (viewMode === viewModes.TOP) {
     player.velocity.y = 0;
   } else {
     player.velocity.z = 0;
@@ -367,14 +393,30 @@ function updateGame(deltaTime) {
 function updateSideView(deltaTime) {
   const leftPressed = isActionPressed("moveLeft") || isActionPressed("moveBackward");
   const rightPressed = isActionPressed("moveRight") || isActionPressed("moveForward");
-  const jumpPressed = isActionPressed("jump");
   const horizontalInput = Number(rightPressed) - Number(leftPressed);
 
-  player.velocity.x = horizontalInput * physics.moveSpeed;
+  if (player.grounded) {
+    player.coyoteTimer = physics.coyoteTime;
+  } else {
+    player.coyoteTimer = Math.max(player.coyoteTimer - deltaTime, 0);
+  }
 
-  if (jumpPressed && player.grounded) {
+  player.jumpBufferTimer = Math.max(player.jumpBufferTimer - deltaTime, 0);
+  applySideHorizontalMovement(horizontalInput, deltaTime);
+
+  if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
     player.velocity.y = physics.jumpSpeed;
     player.grounded = false;
+    player.coyoteTimer = 0;
+    player.jumpBufferTimer = 0;
+
+    if (
+      horizontalInput !== 0 &&
+      Math.sign(player.velocity.x) !== -horizontalInput &&
+      Math.abs(player.velocity.x) < physics.jumpForwardMinSpeed
+    ) {
+      player.velocity.x = horizontalInput * physics.jumpForwardMinSpeed;
+    }
   }
 
   player.velocity.y = Math.max(player.velocity.y + physics.gravity * deltaTime, physics.maxFallSpeed);
@@ -383,6 +425,25 @@ function updateSideView(deltaTime) {
   if (player.mesh.position.y < -8) {
     resetPlayer();
   }
+}
+
+function applySideHorizontalMovement(input, deltaTime) {
+  const targetSpeed = input * physics.moveSpeed;
+
+  if (input === 0) {
+    const deceleration = player.grounded ? physics.groundDeceleration : physics.airDeceleration;
+    player.velocity.x = moveToward(player.velocity.x, 0, deceleration * deltaTime);
+    return;
+  }
+
+  const isTurningAround = Math.sign(player.velocity.x) === -input;
+  const acceleration = player.grounded
+    ? physics.groundAcceleration
+    : isTurningAround
+      ? physics.airTurnAcceleration
+      : physics.airAcceleration;
+
+  player.velocity.x = moveToward(player.velocity.x, targetSpeed, acceleration * deltaTime);
 }
 
 function updateTopView(deltaTime) {
@@ -534,6 +595,18 @@ function getBlockBounds(block) {
 
 function isActionPressed(action) {
   return pressedKeys.has(settings.keybinds[action]);
+}
+
+function isGameplayKey(key) {
+  return Object.values(settings.keybinds).includes(key);
+}
+
+function moveToward(current, target, maxDelta) {
+  if (Math.abs(target - current) <= maxDelta) {
+    return target;
+  }
+
+  return current + Math.sign(target - current) * maxDelta;
 }
 
 // ===== 暂停菜单 =====
