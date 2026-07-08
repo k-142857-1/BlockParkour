@@ -96,5 +96,22 @@
 			"x": 43,
 			"y": 1.2
 		}
+	],
+	"checkpoints": [
+		{
+			"id": "checkpoint-1",
+			"x": 7.4,
+			"y": 2.15
+		},
+		{
+			"id": "checkpoint-2",
+			"x": 31.6,
+			"y": 3.05
+		},
+		{
+			"id": "checkpoint-3",
+			"x": 52,
+			"y": 2.45
+		}
 	]
 }
