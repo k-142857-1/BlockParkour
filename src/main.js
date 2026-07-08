@@ -1206,8 +1206,9 @@ function renderSavedGameList(savedGames = getSavedGames()) {
 
 		deleteButton.type = "button";
 		deleteButton.className = "delete-save-button";
-		deleteButton.textContent = "X";
+		deleteButton.textContent = "🗑";
 		deleteButton.setAttribute("aria-label", translations[settings.language].deleteSave);
+		deleteButton.title = translations[settings.language].deleteSave;
 		deleteButton.addEventListener("click", () => deleteSavedGame(save.id));
 
 		title.className = "saved-game-title";
