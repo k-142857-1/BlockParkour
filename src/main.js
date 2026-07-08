@@ -20,6 +20,9 @@ const saveToast = document.querySelector("#save-toast");
 const savePicker = document.querySelector("#save-picker");
 const newGameButton = document.querySelector("#new-game-button");
 const savedGameList = document.querySelector("#saved-game-list");
+const gemHud = document.querySelector("#gem-hud");
+const sideToTopCount = document.querySelector("#side-to-top-count");
+const topToSideCount = document.querySelector("#top-to-side-count");
 const settingsStorageKey = "3d-block-settings";
 const progressStorageKey = "3d-block-progress-v1";
 
@@ -52,6 +55,8 @@ const translations = {
 		progressSaved: "进度已保存",
 		savedAt: "保存于",
 		progressLabel: "进度",
+		deleteSave: "删除存档",
+		notEnoughGems: "对应宝石不足",
 	},
 	en: {
 		subtitle: "A 3D block game.",
@@ -80,6 +85,8 @@ const translations = {
 		progressSaved: "Progress saved",
 		savedAt: "Saved",
 		progressLabel: "Progress",
+		deleteSave: "Delete save",
+		notEnoughGems: "Need the matching gem",
 	},
 };
 
@@ -100,9 +107,14 @@ const settings = {
 // ===== 游戏状态与基础参数 =====
 const pressedKeys = new Set();
 const levelBlocks = [];
+const levelGems = [];
 const viewModes = {
 	SIDE: "side",
 	TOP: "top",
+};
+const gemTypes = {
+	SIDE_TO_TOP: "sideToTop",
+	TOP_TO_SIDE: "topToSide",
 };
 const playerSize = { width: 1, height: 1, depth: 1 };
 const physics = {
@@ -121,6 +133,7 @@ const physics = {
 };
 const cameraDistance = 18;
 const progressAutoSaveInterval = 8000;
+const gemSize = 0.78;
 
 // map.json 读取失败时使用这份备用地图，避免页面直接空白。
 const fallbackMap = {
@@ -133,6 +146,10 @@ const fallbackMap = {
 		{ x: 22, y: 1.2, w: 5, h: 0.7 },
 		{ x: 30, y: 2.1, w: 4, h: 0.7 },
 		{ x: 38, y: 0, w: 12, h: 1 },
+	],
+	gems: [
+		{ id: "side-to-top-1", type: gemTypes.SIDE_TO_TOP, x: 3, y: 1.2 },
+		{ id: "top-to-side-1", type: gemTypes.TOP_TO_SIDE, x: 10, y: 2.25 },
 	],
 };
 
@@ -147,6 +164,11 @@ let viewHintTimer = null;
 let saveHintTimer = null;
 let currentSaveId = null;
 let lastProgressSaveTime = performance.now();
+let gemInventory = {
+	[gemTypes.SIDE_TO_TOP]: 0,
+	[gemTypes.TOP_TO_SIDE]: 0,
+};
+let collectedGemIds = new Set();
 
 loadSettings();
 
@@ -182,11 +204,18 @@ keyLight.target = keyLightTarget;
 scene.add(keyLight);
 scene.add(keyLightTarget);
 
+const textureLoader = new THREE.TextureLoader();
+const textures = {
+	player: loadGameTexture("./src/player.svg"),
+	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg"),
+	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg"),
+};
+
 // ===== 玩家与地图材质 =====
 const player = {
 	mesh: new THREE.Mesh(
 		new THREE.BoxGeometry(playerSize.width, playerSize.height, playerSize.depth),
-		new THREE.MeshStandardMaterial({ color: 0xffcf56, roughness: 0.42 }),
+		new THREE.MeshStandardMaterial({ color: 0xffffff, map: textures.player, roughness: 0.42 }),
 	),
 	velocity: new THREE.Vector3(0, 0, 0),
 	grounded: false,
@@ -301,7 +330,9 @@ async function loadMap() {
 
 function buildMap(mapData) {
 	levelBlocks.forEach((block) => scene.remove(block.mesh));
+	levelGems.forEach((gem) => scene.remove(gem.mesh));
 	levelBlocks.length = 0;
+	levelGems.length = 0;
 
 	mapData.blocks.forEach((blockData) => {
 		const block = normalizeBlock(blockData);
@@ -318,8 +349,32 @@ function buildMap(mapData) {
 		});
 	});
 
+	buildGems(mapData.gems || fallbackMap.gems || []);
 	updateShadowLayout();
 	updateViewPresentation();
+}
+
+function buildGems(gems) {
+	gems.forEach((gemData, index) => {
+		const gem = normalizeGem(gemData, index);
+		const material = new THREE.SpriteMaterial({
+			map: getGemTexture(gem.type),
+			transparent: true,
+			depthWrite: false,
+		});
+		const mesh = new THREE.Sprite(material);
+
+		mesh.position.set(gem.x, gem.y, gem.z);
+		mesh.scale.set(gemSize, gemSize, 1);
+		scene.add(mesh);
+
+		levelGems.push({
+			...gem,
+			mesh,
+		});
+	});
+
+	refreshGemVisibility();
 }
 
 function normalizeBlock(blockData) {
@@ -333,8 +388,34 @@ function normalizeBlock(blockData) {
 	};
 }
 
+function normalizeGem(gemData, index) {
+	const type =
+		gemData.type === gemTypes.TOP_TO_SIDE ? gemTypes.TOP_TO_SIDE : gemTypes.SIDE_TO_TOP;
+
+	return {
+		id: gemData.id || `${type}-${index + 1}`,
+		type,
+		x: gemData.x,
+		y: gemData.y,
+		z: gemData.z ?? 0.8,
+	};
+}
+
 function getBlockMaterial(block) {
 	return block.y <= 0 ? groundMaterial : blockMaterial;
+}
+
+function getGemTexture(type) {
+	return type === gemTypes.TOP_TO_SIDE ? textures.topToSideGem : textures.sideToTopGem;
+}
+
+function loadGameTexture(path) {
+	const texture = textureLoader.load(path);
+
+	texture.colorSpace = THREE.SRGBColorSpace;
+	texture.anisotropy = 4;
+
+	return texture;
 }
 
 // ===== 游戏开始与玩家重置 =====
@@ -355,6 +436,7 @@ function startNewGame() {
 	currentSaveId = getActiveSaveId();
 	viewMode = viewModes.SIDE;
 	closeSavePicker();
+	resetGemState();
 	resetPlayer();
 	updateViewPresentation();
 	beginGame();
@@ -383,8 +465,10 @@ function beginGame() {
 	startScreen.classList.add("is-hidden");
 	gameSettingsButton.hidden = false;
 	gamePauseButton.hidden = false;
+	gemHud.hidden = false;
 	pauseModal.hidden = true;
 	closeSettings();
+	updateGemHud();
 }
 
 function closeSavePicker() {
@@ -463,6 +547,13 @@ function setViewMode(nextMode) {
 		return;
 	}
 
+	const requiredGem = getRequiredGemForViewSwitch(nextMode);
+
+	if (!consumeGem(requiredGem)) {
+		showViewHint(null, translations[settings.language].notEnoughGems);
+		return;
+	}
+
 	viewMode = nextMode;
 	player.jumpBufferTimer = 0;
 	player.coyoteTimer = 0;
@@ -478,6 +569,22 @@ function setViewMode(nextMode) {
 	showViewHint(viewMode);
 	updateViewPresentation();
 	centerCameraOnPlayer();
+	saveProgress({ showHint: false });
+}
+
+function getRequiredGemForViewSwitch(nextMode) {
+	return nextMode === viewModes.TOP ? gemTypes.SIDE_TO_TOP : gemTypes.TOP_TO_SIDE;
+}
+
+function consumeGem(type) {
+	if (gemInventory[type] <= 0) {
+		return false;
+	}
+
+	gemInventory[type] -= 1;
+	updateGemHud();
+
+	return true;
 }
 
 function updateGame(deltaTime) {
@@ -487,6 +594,7 @@ function updateGame(deltaTime) {
 		updateSideView(deltaTime);
 	}
 
+	collectGems();
 	centerCameraOnPlayer();
 }
 
@@ -656,12 +764,13 @@ function updateShadowMode(isEnabled) {
 	});
 }
 
-function showViewHint(nextMode) {
+function showViewHint(nextMode, message = "") {
 	window.clearTimeout(viewHintTimer);
 	viewToast.textContent =
-		nextMode === viewModes.TOP
+		message ||
+		(nextMode === viewModes.TOP
 			? translations[settings.language].topViewHint
-			: translations[settings.language].sideViewHint;
+			: translations[settings.language].sideViewHint);
 	viewToast.hidden = false;
 	viewToast.classList.add("is-visible");
 
@@ -791,6 +900,55 @@ function getBlockBounds(block) {
 	};
 }
 
+function collectGems() {
+	levelGems.forEach((gem) => {
+		if (collectedGemIds.has(gem.id) || !isGemOverlapping(gem)) {
+			return;
+		}
+
+		collectedGemIds.add(gem.id);
+		gemInventory[gem.type] += 1;
+		gem.mesh.visible = false;
+		updateGemHud();
+		saveProgress({ showHint: false });
+	});
+}
+
+function isGemOverlapping(gem) {
+	const playerBounds = getPlayerBounds(player.mesh.position);
+	const halfGem = gemSize / 2;
+
+	return (
+		playerBounds.right > gem.x - halfGem &&
+		playerBounds.left < gem.x + halfGem &&
+		playerBounds.top > gem.y - halfGem &&
+		playerBounds.bottom < gem.y + halfGem &&
+		playerBounds.back > gem.z - halfGem &&
+		playerBounds.front < gem.z + halfGem
+	);
+}
+
+function resetGemState() {
+	gemInventory = {
+		[gemTypes.SIDE_TO_TOP]: 0,
+		[gemTypes.TOP_TO_SIDE]: 0,
+	};
+	collectedGemIds = new Set();
+	refreshGemVisibility();
+	updateGemHud();
+}
+
+function refreshGemVisibility() {
+	levelGems.forEach((gem) => {
+		gem.mesh.visible = !collectedGemIds.has(gem.id);
+	});
+}
+
+function updateGemHud() {
+	sideToTopCount.textContent = String(gemInventory[gemTypes.SIDE_TO_TOP]);
+	topToSideCount.textContent = String(gemInventory[gemTypes.TOP_TO_SIDE]);
+}
+
 function isActionPressed(action) {
 	return pressedKeys.has(settings.keybinds[action]);
 }
@@ -845,6 +1003,7 @@ function quitToMainMenu() {
 	pauseModal.hidden = true;
 	gameSettingsButton.hidden = true;
 	gamePauseButton.hidden = true;
+	gemHud.hidden = true;
 	startScreen.classList.remove("is-hidden");
 	viewMode = viewModes.SIDE;
 	hideViewHint();
@@ -905,6 +1064,7 @@ function getActiveSaveId() {
 	const mapSignature = JSON.stringify({
 		spawn: activeMap.spawn || fallbackMap.spawn,
 		blocks: activeMap.blocks || fallbackMap.blocks,
+		gems: activeMap.gems || fallbackMap.gems,
 	});
 
 	return `map-${hashString(mapSignature)}`;
@@ -918,13 +1078,23 @@ function renderSavedGameList(savedGames = getSavedGames()) {
 	savedGameList.replaceChildren();
 
 	savedGames.forEach((save) => {
+		const row = document.createElement("div");
 		const button = document.createElement("button");
+		const deleteButton = document.createElement("button");
 		const title = document.createElement("span");
 		const meta = document.createElement("span");
+
+		row.className = "saved-game-row";
 
 		button.type = "button";
 		button.className = "saved-game-button";
 		button.addEventListener("click", () => startSavedGame(save.id));
+
+		deleteButton.type = "button";
+		deleteButton.className = "delete-save-button";
+		deleteButton.textContent = "X";
+		deleteButton.setAttribute("aria-label", translations[settings.language].deleteSave);
+		deleteButton.addEventListener("click", () => deleteSavedGame(save.id));
 
 		title.className = "saved-game-title";
 		title.textContent = save.mapName || "3D Block";
@@ -935,8 +1105,21 @@ function renderSavedGameList(savedGames = getSavedGames()) {
 		} ${formatProgress(save)}`;
 
 		button.append(title, meta);
-		savedGameList.append(button);
+		row.append(button, deleteButton);
+		savedGameList.append(row);
 	});
+}
+
+function deleteSavedGame(saveId) {
+	const store = getSaveStore();
+
+	delete store.saves[saveId];
+	writeSaveStore(store);
+	renderSavedGameList();
+
+	if (getSavedGames().length === 0) {
+		savePicker.hidden = true;
+	}
 }
 
 function buildProgressSave() {
@@ -952,6 +1135,10 @@ function buildProgressSave() {
 			position: { x: position.x, y: position.y, z: position.z },
 			velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
 			grounded: player.grounded,
+		},
+		gems: {
+			inventory: { ...gemInventory },
+			collectedIds: [...collectedGemIds],
 		},
 	};
 }
@@ -995,16 +1182,24 @@ function applyProgressSave(save) {
 	const velocity = save.player?.velocity;
 
 	if (!position || !velocity) {
+		resetGemState();
 		resetPlayer();
 		return;
 	}
 
 	viewMode = save.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE;
+	gemInventory = {
+		[gemTypes.SIDE_TO_TOP]: Math.max(0, Number(save.gems?.inventory?.[gemTypes.SIDE_TO_TOP]) || 0),
+		[gemTypes.TOP_TO_SIDE]: Math.max(0, Number(save.gems?.inventory?.[gemTypes.TOP_TO_SIDE]) || 0),
+	};
+	collectedGemIds = new Set(Array.isArray(save.gems?.collectedIds) ? save.gems.collectedIds : []);
 	player.mesh.position.set(position.x, position.y, position.z ?? 0);
 	player.velocity.set(velocity.x || 0, velocity.y || 0, velocity.z || 0);
 	player.grounded = Boolean(save.player?.grounded);
 	player.jumpBufferTimer = 0;
 	player.coyoteTimer = 0;
+	refreshGemVisibility();
+	updateGemHud();
 	updateViewPresentation();
 	centerCameraOnPlayer();
 }

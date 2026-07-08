@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>3D Block</title>
 		<link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg?v=2" />
-		<link rel="stylesheet" href="./src/style.css?v=5" />
+		<link rel="stylesheet" href="./src/style.css?v=6" />
 	</head>
 	<body>
 		<canvas id="game-canvas" aria-label="3D Block game"></canvas>
@@ -17,6 +17,16 @@
 		</button>
 		<div class="view-toast" id="view-toast" role="status" aria-live="polite" hidden></div>
 		<div class="save-toast" id="save-toast" role="status" aria-live="polite" hidden></div>
+		<div class="gem-hud" id="gem-hud" aria-label="Gem inventory" hidden>
+			<div class="gem-counter">
+				<img src="./src/gem-side-to-top.svg" alt="" />
+				<span id="side-to-top-count">0</span>
+			</div>
+			<div class="gem-counter">
+				<img src="./src/gem-top-to-side.svg" alt="" />
+				<span id="top-to-side-count">0</span>
+			</div>
+		</div>
 
 		<main class="start-screen" id="start-screen" aria-label="Start screen">
 			<div class="start-panel">
@@ -112,6 +122,6 @@
 			</section>
 		</div>
 
-		<script type="module" src="./src/main.js?v=5"></script>
+		<script type="module" src="./src/main.js?v=6"></script>
 	</body>
 </html>
