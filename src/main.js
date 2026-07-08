@@ -15,6 +15,7 @@ const closeSettingsButton = document.querySelector("#close-settings-button");
 const languageSelect = document.querySelector("#language-select");
 const keybindHint = document.querySelector("#keybind-hint");
 const keybindButtons = document.querySelectorAll(".keybind-button");
+const viewToast = document.querySelector("#view-toast");
 const settingsStorageKey = "3d-block-settings";
 
 // 界面文案集中放在这里，后面继续加语言时比较好维护。
@@ -38,6 +39,8 @@ const translations = {
     quitToMenu: "退出到主界面",
     keybindHint: "点击一个键位按钮，然后按下新的按键。",
     waitingForKey: "请按下新的按键...",
+    topViewHint: "已切换到俯视视角",
+    sideViewHint: "已切换到侧视视角",
   },
   en: {
     subtitle: "A 3D block game.",
@@ -58,6 +61,8 @@ const translations = {
     quitToMenu: "Quit to Menu",
     keybindHint: "Click a key button, then press a new key.",
     waitingForKey: "Press a new key...",
+    topViewHint: "Switched to top view",
+    sideViewHint: "Switched to side view",
   },
 };
 
@@ -120,6 +125,7 @@ let gamePaused = false;
 let viewMode = viewModes.SIDE;
 let listeningAction = null;
 let lastTime = performance.now();
+let viewHintTimer = null;
 
 loadSettings();
 
@@ -134,14 +140,22 @@ camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = false;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const ambientLight = new THREE.HemisphereLight(0xd8efff, 0x17100a, 1.65);
 scene.add(ambientLight);
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 2);
 keyLight.position.set(-5, 8, 8);
-keyLight.castShadow = true;
+keyLight.castShadow = false;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.left = -18;
+keyLight.shadow.camera.right = 18;
+keyLight.shadow.camera.top = 14;
+keyLight.shadow.camera.bottom = -14;
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 40;
 scene.add(keyLight);
 
 // ===== 玩家与地图材质 =====
@@ -155,7 +169,7 @@ const player = {
   jumpBufferTimer: 0,
   coyoteTimer: 0,
 };
-player.mesh.castShadow = true;
+player.mesh.castShadow = false;
 scene.add(player.mesh);
 
 const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughness: 0.66 });
@@ -182,6 +196,7 @@ loadMap();
 bindUi();
 applyLanguage();
 renderKeybinds();
+updateViewPresentation();
 animate();
 
 // ===== UI 事件绑定 =====
@@ -256,8 +271,6 @@ function buildMap(mapData) {
       getBlockMaterial(block),
     );
     mesh.position.set(block.x, block.y, block.z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
     scene.add(mesh);
 
     levelBlocks.push({
@@ -265,6 +278,8 @@ function buildMap(mapData) {
       mesh,
     });
   });
+
+  updateViewPresentation();
 }
 
 function normalizeBlock(blockData) {
@@ -376,7 +391,8 @@ function setViewMode(nextMode) {
     player.grounded = false;
   }
 
-  updateViewHelpers();
+  showViewHint(viewMode);
+  updateViewPresentation();
   centerCameraOnPlayer();
 }
 
@@ -479,6 +495,47 @@ function updateViewHelpers() {
   sideGuideLines.forEach((line) => {
     line.visible = true;
   });
+}
+
+function updateViewPresentation() {
+  updateViewHelpers();
+  updateShadowMode(viewMode === viewModes.TOP);
+}
+
+function updateShadowMode(isEnabled) {
+  renderer.shadowMap.enabled = isEnabled;
+  renderer.shadowMap.needsUpdate = true;
+  keyLight.castShadow = isEnabled;
+  player.mesh.castShadow = isEnabled;
+  player.mesh.receiveShadow = isEnabled;
+
+  levelBlocks.forEach((block) => {
+    block.mesh.castShadow = isEnabled;
+    block.mesh.receiveShadow = isEnabled;
+  });
+}
+
+function showViewHint(nextMode) {
+  window.clearTimeout(viewHintTimer);
+  viewToast.textContent =
+    nextMode === viewModes.TOP
+      ? translations[settings.language].topViewHint
+      : translations[settings.language].sideViewHint;
+  viewToast.hidden = false;
+  viewToast.classList.add("is-visible");
+
+  viewHintTimer = window.setTimeout(() => {
+    viewToast.classList.remove("is-visible");
+    viewHintTimer = window.setTimeout(() => {
+      viewToast.hidden = true;
+    }, 200);
+  }, 1200);
+}
+
+function hideViewHint() {
+  window.clearTimeout(viewHintTimer);
+  viewToast.classList.remove("is-visible");
+  viewToast.hidden = true;
 }
 
 // ===== 简单 AABB 碰撞 =====
@@ -648,6 +705,8 @@ function quitToMainMenu() {
   gamePauseButton.hidden = true;
   startScreen.classList.remove("is-hidden");
   viewMode = viewModes.SIDE;
+  hideViewHint();
+  updateViewPresentation();
   resetPlayer();
 }
 
