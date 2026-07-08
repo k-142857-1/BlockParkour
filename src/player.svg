@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Player">
-	<rect width="128" height="128" rx="24" fill="#ffcf56" />
+	<rect width="128" height="128" fill="#ffcf56" />
 	<path d="M28 34h72v56H28z" fill="#ffe38a" />
 	<path d="M28 90h72l-14 18H42z" fill="#e19a21" />
 	<path d="M28 34l14-14h44l14 14z" fill="#fff0b0" />

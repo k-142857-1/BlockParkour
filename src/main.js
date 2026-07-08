@@ -42,6 +42,7 @@ const translations = {
 		jump: "跳跃",
 		switchTopView: "切到俯视",
 		switchSideView: "切到侧视",
+		returnToCheckpoint: "返回存档点",
 		pauseTitle: "暂停",
 		resumeGame: "继续",
 		quitToMenu: "退出到主界面",
@@ -57,6 +58,8 @@ const translations = {
 		progressLabel: "进度",
 		deleteSave: "删除存档",
 		notEnoughGems: "对应宝石不足",
+		checkpointReached: "已到达存档点",
+		returnedToCheckpoint: "已返回存档点",
 	},
 	en: {
 		subtitle: "A 3D block game.",
@@ -72,6 +75,7 @@ const translations = {
 		jump: "Jump",
 		switchTopView: "Switch to Top",
 		switchSideView: "Switch to Side",
+		returnToCheckpoint: "Return to Checkpoint",
 		pauseTitle: "Paused",
 		resumeGame: "Resume",
 		quitToMenu: "Quit to Menu",
@@ -87,6 +91,8 @@ const translations = {
 		progressLabel: "Progress",
 		deleteSave: "Delete save",
 		notEnoughGems: "Need the matching gem",
+		checkpointReached: "Checkpoint reached",
+		returnedToCheckpoint: "Returned to checkpoint",
 	},
 };
 
@@ -101,6 +107,7 @@ const settings = {
 		jump: "Space",
 		switchTopView: "Q",
 		switchSideView: "E",
+		returnToCheckpoint: "R",
 	},
 };
 
@@ -108,6 +115,7 @@ const settings = {
 const pressedKeys = new Set();
 const levelBlocks = [];
 const levelGems = [];
+const levelCheckpoints = [];
 const viewModes = {
 	SIDE: "side",
 	TOP: "top",
@@ -134,6 +142,7 @@ const physics = {
 const cameraDistance = 18;
 const progressAutoSaveInterval = 8000;
 const gemSize = 0.78;
+const checkpointSize = 1.12;
 
 // map.json 读取失败时使用这份备用地图，避免页面直接空白。
 const fallbackMap = {
@@ -150,6 +159,9 @@ const fallbackMap = {
 	gems: [
 		{ id: "side-to-top-1", type: gemTypes.SIDE_TO_TOP, x: 3, y: 1.2 },
 		{ id: "top-to-side-1", type: gemTypes.TOP_TO_SIDE, x: 10, y: 2.25 },
+	],
+	checkpoints: [
+		{ id: "checkpoint-1", x: 7.4, y: 2.15 },
 	],
 };
 
@@ -169,6 +181,7 @@ let gemInventory = {
 	[gemTypes.TOP_TO_SIDE]: 0,
 };
 let collectedGemIds = new Set();
+let lastCheckpoint = null;
 
 loadSettings();
 
@@ -209,6 +222,7 @@ const textures = {
 	player: loadGameTexture("./src/player.svg"),
 	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg"),
 	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg"),
+	checkpoint: loadGameTexture("./src/checkpoint.svg"),
 };
 
 // ===== 玩家与地图材质 =====
@@ -331,8 +345,10 @@ async function loadMap() {
 function buildMap(mapData) {
 	levelBlocks.forEach((block) => scene.remove(block.mesh));
 	levelGems.forEach((gem) => scene.remove(gem.mesh));
+	levelCheckpoints.forEach((checkpoint) => scene.remove(checkpoint.mesh));
 	levelBlocks.length = 0;
 	levelGems.length = 0;
+	levelCheckpoints.length = 0;
 
 	mapData.blocks.forEach((blockData) => {
 		const block = normalizeBlock(blockData);
@@ -350,6 +366,7 @@ function buildMap(mapData) {
 	});
 
 	buildGems(mapData.gems || fallbackMap.gems || []);
+	buildCheckpoints(mapData.checkpoints || fallbackMap.checkpoints || []);
 	updateShadowLayout();
 	updateViewPresentation();
 }
@@ -377,6 +394,27 @@ function buildGems(gems) {
 	refreshGemVisibility();
 }
 
+function buildCheckpoints(checkpoints) {
+	checkpoints.forEach((checkpointData, index) => {
+		const checkpoint = normalizeCheckpoint(checkpointData, index);
+		const material = new THREE.SpriteMaterial({
+			map: textures.checkpoint,
+			transparent: true,
+			depthWrite: false,
+		});
+		const mesh = new THREE.Sprite(material);
+
+		mesh.position.set(checkpoint.x, checkpoint.y, checkpoint.z);
+		mesh.scale.set(checkpointSize, checkpointSize, 1);
+		scene.add(mesh);
+
+		levelCheckpoints.push({
+			...checkpoint,
+			mesh,
+		});
+	});
+}
+
 function normalizeBlock(blockData) {
 	return {
 		x: blockData.x,
@@ -398,6 +436,15 @@ function normalizeGem(gemData, index) {
 		x: gemData.x,
 		y: gemData.y,
 		z: gemData.z ?? 0.8,
+	};
+}
+
+function normalizeCheckpoint(checkpointData, index) {
+	return {
+		id: checkpointData.id || `checkpoint-${index + 1}`,
+		x: checkpointData.x,
+		y: checkpointData.y,
+		z: checkpointData.z ?? 0.9,
 	};
 }
 
@@ -437,6 +484,7 @@ function startNewGame() {
 	viewMode = viewModes.SIDE;
 	closeSavePicker();
 	resetGemState();
+	resetCheckpointState();
 	resetPlayer();
 	updateViewPresentation();
 	beginGame();
@@ -478,13 +526,29 @@ function closeSavePicker() {
 
 function resetPlayer() {
 	const spawn = activeMap.spawn || fallbackMap.spawn;
-	player.mesh.position.set(spawn.x, spawn.y, 0);
+	const checkpoint = lastCheckpoint || { x: spawn.x, y: spawn.y, z: 0, viewMode: viewModes.SIDE };
+
+	viewMode = checkpoint.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE;
+	player.mesh.position.set(checkpoint.x, checkpoint.y, checkpoint.z ?? 0);
 	player.mesh.rotation.set(0, 0, 0);
 	player.velocity.set(0, 0, 0);
 	player.grounded = false;
 	player.jumpBufferTimer = 0;
 	player.coyoteTimer = 0;
+	updateViewPresentation();
 	centerCameraOnPlayer();
+}
+
+function resetCheckpointState() {
+	const spawn = activeMap.spawn || fallbackMap.spawn;
+
+	lastCheckpoint = {
+		id: "spawn",
+		x: spawn.x,
+		y: spawn.y,
+		z: 0,
+		viewMode: viewModes.SIDE,
+	};
 }
 
 // ===== 输入处理 =====
@@ -531,6 +595,11 @@ function handleKeyDown(event) {
 
 	if (!event.repeat && key === settings.keybinds.switchSideView) {
 		setViewMode(viewModes.SIDE);
+		return;
+	}
+
+	if (!event.repeat && key === settings.keybinds.returnToCheckpoint) {
+		returnToCheckpoint();
 		return;
 	}
 
@@ -595,6 +664,7 @@ function updateGame(deltaTime) {
 	}
 
 	collectGems();
+	activateCheckpoints();
 	centerCameraOnPlayer();
 }
 
@@ -914,6 +984,35 @@ function collectGems() {
 	});
 }
 
+function activateCheckpoints() {
+	levelCheckpoints.forEach((checkpoint) => {
+		if (lastCheckpoint?.id === checkpoint.id || !isCheckpointOverlapping(checkpoint)) {
+			return;
+		}
+
+		lastCheckpoint = {
+			id: checkpoint.id,
+			x: checkpoint.x,
+			y: checkpoint.y,
+			z: 0,
+			viewMode,
+		};
+
+		showSaveHint(translations[settings.language].checkpointReached);
+		saveProgress({ showHint: false });
+	});
+}
+
+function returnToCheckpoint() {
+	if (!lastCheckpoint) {
+		resetCheckpointState();
+	}
+
+	resetPlayer();
+	showSaveHint(translations[settings.language].returnedToCheckpoint);
+	saveProgress({ showHint: false });
+}
+
 function isGemOverlapping(gem) {
 	const playerBounds = getPlayerBounds(player.mesh.position);
 	const halfGem = gemSize / 2;
@@ -925,6 +1024,20 @@ function isGemOverlapping(gem) {
 		playerBounds.bottom < gem.y + halfGem &&
 		playerBounds.back > gem.z - halfGem &&
 		playerBounds.front < gem.z + halfGem
+	);
+}
+
+function isCheckpointOverlapping(checkpoint) {
+	const playerBounds = getPlayerBounds(player.mesh.position);
+	const halfCheckpoint = checkpointSize / 2;
+
+	return (
+		playerBounds.right > checkpoint.x - halfCheckpoint &&
+		playerBounds.left < checkpoint.x + halfCheckpoint &&
+		playerBounds.top > checkpoint.y - halfCheckpoint &&
+		playerBounds.bottom < checkpoint.y + halfCheckpoint &&
+		playerBounds.back > checkpoint.z - halfCheckpoint &&
+		playerBounds.front < checkpoint.z + halfCheckpoint
 	);
 }
 
@@ -1065,6 +1178,7 @@ function getActiveSaveId() {
 		spawn: activeMap.spawn || fallbackMap.spawn,
 		blocks: activeMap.blocks || fallbackMap.blocks,
 		gems: activeMap.gems || fallbackMap.gems,
+		checkpoints: activeMap.checkpoints || fallbackMap.checkpoints,
 	});
 
 	return `map-${hashString(mapSignature)}`;
@@ -1092,8 +1206,9 @@ function renderSavedGameList(savedGames = getSavedGames()) {
 
 		deleteButton.type = "button";
 		deleteButton.className = "delete-save-button";
-		deleteButton.textContent = "X";
+		deleteButton.textContent = "🗑";
 		deleteButton.setAttribute("aria-label", translations[settings.language].deleteSave);
+		deleteButton.title = translations[settings.language].deleteSave;
 		deleteButton.addEventListener("click", () => deleteSavedGame(save.id));
 
 		title.className = "saved-game-title";
@@ -1140,6 +1255,7 @@ function buildProgressSave() {
 			inventory: { ...gemInventory },
 			collectedIds: [...collectedGemIds],
 		},
+		checkpoint: lastCheckpoint,
 	};
 }
 
@@ -1183,6 +1299,7 @@ function applyProgressSave(save) {
 
 	if (!position || !velocity) {
 		resetGemState();
+		resetCheckpointState();
 		resetPlayer();
 		return;
 	}
@@ -1193,6 +1310,7 @@ function applyProgressSave(save) {
 		[gemTypes.TOP_TO_SIDE]: Math.max(0, Number(save.gems?.inventory?.[gemTypes.TOP_TO_SIDE]) || 0),
 	};
 	collectedGemIds = new Set(Array.isArray(save.gems?.collectedIds) ? save.gems.collectedIds : []);
+	lastCheckpoint = normalizeSavedCheckpoint(save.checkpoint);
 	player.mesh.position.set(position.x, position.y, position.z ?? 0);
 	player.velocity.set(velocity.x || 0, velocity.y || 0, velocity.z || 0);
 	player.grounded = Boolean(save.player?.grounded);
@@ -1202,6 +1320,28 @@ function applyProgressSave(save) {
 	updateGemHud();
 	updateViewPresentation();
 	centerCameraOnPlayer();
+}
+
+function normalizeSavedCheckpoint(checkpoint) {
+	if (!checkpoint || !Number.isFinite(checkpoint.x) || !Number.isFinite(checkpoint.y)) {
+		const spawn = activeMap.spawn || fallbackMap.spawn;
+
+		return {
+			id: "spawn",
+			x: spawn.x,
+			y: spawn.y,
+			z: 0,
+			viewMode: viewModes.SIDE,
+		};
+	}
+
+	return {
+		id: checkpoint.id || "checkpoint",
+		x: checkpoint.x,
+		y: checkpoint.y,
+		z: checkpoint.z ?? 0,
+		viewMode: checkpoint.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE,
+	};
 }
 
 function showSaveHint(message) {
