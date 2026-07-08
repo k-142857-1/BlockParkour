@@ -181,6 +181,7 @@ let gemInventory = {
 	[gemTypes.TOP_TO_SIDE]: 0,
 };
 let collectedGemIds = new Set();
+let activatedCheckpointIds = new Set();
 let lastCheckpoint = null;
 
 loadSettings();
@@ -223,6 +224,7 @@ const textures = {
 	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg"),
 	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg"),
 	checkpoint: loadGameTexture("./src/checkpoint.svg"),
+	unactCheckpoint: loadGameTexture("./src/unact_checkpoint.svg")
 };
 
 // ===== 玩家与地图材质 =====
@@ -398,7 +400,7 @@ function buildCheckpoints(checkpoints) {
 	checkpoints.forEach((checkpointData, index) => {
 		const checkpoint = normalizeCheckpoint(checkpointData, index);
 		const material = new THREE.SpriteMaterial({
-			map: textures.checkpoint,
+			map: textures.unactCheckpoint,
 			transparent: true,
 			depthWrite: false,
 		});
@@ -413,6 +415,8 @@ function buildCheckpoints(checkpoints) {
 			mesh,
 		});
 	});
+
+	refreshCheckpointStates();
 }
 
 function normalizeBlock(blockData) {
@@ -446,6 +450,19 @@ function normalizeCheckpoint(checkpointData, index) {
 		y: checkpointData.y,
 		z: checkpointData.z ?? 0.9,
 	};
+}
+
+function refreshCheckpointStates() {
+	levelCheckpoints.forEach((checkpoint) => {
+		const texture = activatedCheckpointIds.has(checkpoint.id)
+			? textures.checkpoint
+			: textures.unactCheckpoint;
+
+		if (checkpoint.mesh.material.map !== texture) {
+			checkpoint.mesh.material.map = texture;
+			checkpoint.mesh.material.needsUpdate = true;
+		}
+	});
 }
 
 function getBlockMaterial(block) {
@@ -542,6 +559,7 @@ function resetPlayer() {
 function resetCheckpointState() {
 	const spawn = activeMap.spawn || fallbackMap.spawn;
 
+	activatedCheckpointIds = new Set();
 	lastCheckpoint = {
 		id: "spawn",
 		x: spawn.x,
@@ -549,6 +567,7 @@ function resetCheckpointState() {
 		z: 0,
 		viewMode: viewModes.SIDE,
 	};
+	refreshCheckpointStates();
 }
 
 // ===== 输入处理 =====
@@ -986,7 +1005,16 @@ function collectGems() {
 
 function activateCheckpoints() {
 	levelCheckpoints.forEach((checkpoint) => {
-		if (lastCheckpoint?.id === checkpoint.id || !isCheckpointOverlapping(checkpoint)) {
+		if (!isCheckpointOverlapping(checkpoint)) {
+			return;
+		}
+
+		if (!activatedCheckpointIds.has(checkpoint.id)) {
+			activatedCheckpointIds.add(checkpoint.id);
+			refreshCheckpointStates();
+		}
+
+		if (lastCheckpoint?.id === checkpoint.id) {
 			return;
 		}
 
@@ -1206,8 +1234,9 @@ function renderSavedGameList(savedGames = getSavedGames()) {
 
 		deleteButton.type = "button";
 		deleteButton.className = "delete-save-button";
-		deleteButton.textContent = "X";
+		deleteButton.textContent = "🗑";
 		deleteButton.setAttribute("aria-label", translations[settings.language].deleteSave);
+		deleteButton.title = translations[settings.language].deleteSave;
 		deleteButton.addEventListener("click", () => deleteSavedGame(save.id));
 
 		title.className = "saved-game-title";
@@ -1253,6 +1282,9 @@ function buildProgressSave() {
 		gems: {
 			inventory: { ...gemInventory },
 			collectedIds: [...collectedGemIds],
+		},
+		checkpoints: {
+			activatedIds: [...activatedCheckpointIds],
 		},
 		checkpoint: lastCheckpoint,
 	};
@@ -1310,15 +1342,27 @@ function applyProgressSave(save) {
 	};
 	collectedGemIds = new Set(Array.isArray(save.gems?.collectedIds) ? save.gems.collectedIds : []);
 	lastCheckpoint = normalizeSavedCheckpoint(save.checkpoint);
+	activatedCheckpointIds = normalizeActivatedCheckpointIds(save.checkpoints?.activatedIds, lastCheckpoint);
 	player.mesh.position.set(position.x, position.y, position.z ?? 0);
 	player.velocity.set(velocity.x || 0, velocity.y || 0, velocity.z || 0);
 	player.grounded = Boolean(save.player?.grounded);
 	player.jumpBufferTimer = 0;
 	player.coyoteTimer = 0;
 	refreshGemVisibility();
+	refreshCheckpointStates();
 	updateGemHud();
 	updateViewPresentation();
 	centerCameraOnPlayer();
+}
+
+function normalizeActivatedCheckpointIds(ids, checkpoint) {
+	const activatedIds = new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : []);
+
+	if (checkpoint?.id && checkpoint.id !== "spawn") {
+		activatedIds.add(checkpoint.id);
+	}
+
+	return activatedIds;
 }
 
 function normalizeSavedCheckpoint(checkpoint) {
