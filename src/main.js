@@ -2,9 +2,11 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.m
 
 // ===== DOM 与菜单设置 =====
 const canvas = document.querySelector("#game-canvas");
+const adArea = document.querySelector("#ad-area");
 const startScreen = document.querySelector("#start-screen");
 const startButton = document.querySelector("#start-button");
 const settingsButton = document.querySelector("#settings-button");
+const supportButton = document.querySelector("#support-button");
 const gameSettingsButton = document.querySelector("#game-settings-button");
 const gamePauseButton = document.querySelector("#game-pause-button");
 const pauseModal = document.querySelector("#pause-modal");
@@ -12,6 +14,11 @@ const resumeButton = document.querySelector("#resume-button");
 const quitButton = document.querySelector("#quit-button");
 const settingsModal = document.querySelector("#settings-modal");
 const closeSettingsButton = document.querySelector("#close-settings-button");
+const supportModal = document.querySelector("#support-modal");
+const closeSupportButton = document.querySelector("#close-support-button");
+const supportAmountButtons = document.querySelectorAll(".support-amount");
+const supportPayButton = document.querySelector("#support-pay-button");
+const supportPaymentHint = document.querySelector("#support-payment-hint");
 const languageSelect = document.querySelector("#language-select");
 const viewToast = document.querySelector("#view-toast");
 const saveToast = document.querySelector("#save-toast");
@@ -34,6 +41,11 @@ const resetControlsButton = document.querySelector("#reset-controls-button");
 const saveControlsButton = document.querySelector("#save-controls-button");
 const settingsStorageKey = "3d-block-settings";
 const progressStorageKey = "3d-block-progress-v1";
+// 填入收款平台生成的金额专属链接；不要在前端存放商户密钥。
+const supportPaymentLinks = {
+	"0.1": "",
+	"0.5": "",
+};
 
 // 界面文案集中放在这里，后面继续加语言时比较好维护。
 const translations = {
@@ -50,6 +62,10 @@ const translations = {
 		resetLayout: "恢复默认",
 		saveLayout: "完成",
 		supportUs: "支持我们",
+		supportTitle: "支持我们",
+		supportDescription: "选择一个金额支持我们。",
+		payNow: "支付",
+		paymentUnavailable: "暂时无法支付，请稍后再试。",
 		pauseTitle: "暂停",
 		resumeGame: "继续",
 		quitToMenu: "退出到主界面",
@@ -79,6 +95,10 @@ const translations = {
 		resetLayout: "Reset",
 		saveLayout: "Done",
 		supportUs: "Support Us",
+		supportTitle: "Support Us",
+		supportDescription: "Choose an amount to support us.",
+		payNow: "Pay",
+		paymentUnavailable: "Payment is temporarily unavailable. Please try again later.",
 		pauseTitle: "Paused",
 		resumeGame: "Resume",
 		quitToMenu: "Quit to Menu",
@@ -185,6 +205,7 @@ let joystickPointerId = null;
 let jumpPointerId = null;
 let layoutEditing = false;
 let layoutDrag = null;
+let selectedSupportAmount = "0.1";
 let lastTime = performance.now();
 let viewHintTimer = null;
 let saveHintTimer = null;
@@ -296,16 +317,27 @@ function bindUi() {
 	startButton.addEventListener("click", handleStartButtonClick);
 	newGameButton.addEventListener("click", startNewGame);
 	settingsButton.addEventListener("click", openSettings);
+	supportButton.addEventListener("click", openSupportModal);
 	gameSettingsButton.addEventListener("click", openSettings);
 	gamePauseButton.addEventListener("click", pauseGame);
 	resumeButton.addEventListener("click", resumeGame);
 	quitButton.addEventListener("click", quitToMainMenu);
 	closeSettingsButton.addEventListener("click", closeSettings);
+	closeSupportButton.addEventListener("click", closeSupportModal);
 	settingsModal.addEventListener("click", (event) => {
 		if (event.target === settingsModal) {
 			closeSettings();
 		}
 	});
+	supportModal.addEventListener("click", (event) => {
+		if (event.target === supportModal) {
+			closeSupportModal();
+		}
+	});
+	supportAmountButtons.forEach((button) => {
+		button.addEventListener("click", () => selectSupportAmount(button.dataset.amount));
+	});
+	supportPayButton.addEventListener("click", openSupportPayment);
 
 	languageSelect.addEventListener("change", () => {
 		settings.language = languageSelect.value;
@@ -582,6 +614,52 @@ function closeSavePicker() {
 	savedGameList.replaceChildren();
 }
 
+function openSupportModal() {
+	supportPaymentHint.textContent = "";
+	supportModal.hidden = false;
+	updateSupportPayment();
+	supportAmountButtons[0].focus();
+}
+
+function closeSupportModal() {
+	supportModal.hidden = true;
+	supportPaymentHint.textContent = "";
+	supportButton.focus();
+}
+
+function selectSupportAmount(amount) {
+	if (!(amount in supportPaymentLinks)) {
+		return;
+	}
+
+	selectedSupportAmount = amount;
+	supportPaymentHint.textContent = "";
+	updateSupportPayment();
+}
+
+function updateSupportPayment() {
+	supportAmountButtons.forEach((button) => {
+		const isSelected = button.dataset.amount === selectedSupportAmount;
+
+		button.classList.toggle("is-selected", isSelected);
+		button.setAttribute("aria-pressed", String(isSelected));
+	});
+	supportPayButton.textContent = `${translations[settings.language].payNow} ¥${Number(
+		selectedSupportAmount,
+	).toFixed(2)}`;
+}
+
+function openSupportPayment() {
+	const paymentUrl = supportPaymentLinks[selectedSupportAmount];
+
+	if (!paymentUrl) {
+		supportPaymentHint.textContent = translations[settings.language].paymentUnavailable;
+		return;
+	}
+
+	window.open(paymentUrl, "_blank", "noopener,noreferrer");
+}
+
 function resetPlayer() {
 	const spawn = activeMap.spawn || fallbackMap.spawn;
 	const checkpoint = lastCheckpoint || { x: spawn.x, y: spawn.y, z: 0, viewMode: viewModes.SIDE };
@@ -781,18 +859,19 @@ function updateLayoutDrag(event) {
 
 	event.preventDefault();
 	const bounds = layoutDrag.element.getBoundingClientRect();
+	const gameViewportHeight = getGameViewportHeight();
 	const edgePadding = 10;
 	const toolbarPadding = controlLayoutToolbar.getBoundingClientRect().bottom + 10;
 	const minX = bounds.width / 2 + edgePadding;
 	const maxX = window.innerWidth - bounds.width / 2 - edgePadding;
 	const minY = Math.max(bounds.height / 2 + edgePadding, toolbarPadding);
-	const maxY = window.innerHeight - bounds.height / 2 - edgePadding;
+	const maxY = Math.max(minY, gameViewportHeight - bounds.height / 2 - edgePadding);
 	const centerX = clamp(event.clientX - layoutDrag.offsetX, minX, maxX);
 	const centerY = clamp(event.clientY - layoutDrag.offsetY, minY, maxY);
 
 	settings.controlLayout[layoutDrag.controlName] = {
 		x: centerX / window.innerWidth,
-		y: centerY / window.innerHeight,
+		y: centerY / gameViewportHeight,
 	};
 	applyControlLayout();
 }
@@ -816,18 +895,19 @@ function applyControlLayout() {
 }
 
 function positionTouchControl(element, position) {
+	const gameViewportHeight = getGameViewportHeight();
 	const halfWidth = element.offsetWidth / 2;
 	const halfHeight = element.offsetHeight / 2;
 	const edgePadding = 10;
 	const minX = (halfWidth + edgePadding) / window.innerWidth;
 	const maxX = 1 - minX;
-	const minY = (halfHeight + edgePadding) / window.innerHeight;
+	const minY = (halfHeight + edgePadding) / gameViewportHeight;
 	const maxY = 1 - minY;
 	const x = clamp(position.x, minX, maxX);
 	const y = clamp(position.y, minY, maxY);
 
 	element.style.left = `${x * 100}%`;
-	element.style.top = `${y * 100}%`;
+	element.style.top = `${y * gameViewportHeight}px`;
 }
 
 function cloneControlLayout(layout) {
@@ -842,12 +922,21 @@ function clamp(value, min, max) {
 	return Math.min(Math.max(value, min), max);
 }
 
+function getGameViewportHeight() {
+	return Math.max(1, window.innerHeight - adArea.offsetHeight);
+}
+
 // ===== 输入处理 =====
 function handleKeyDown(event) {
 	if (event.key === "Escape") {
 		event.preventDefault();
 		if (layoutEditing) {
 			finishControlLayoutEditing();
+			return;
+		}
+
+		if (!supportModal.hidden) {
+			closeSupportModal();
 			return;
 		}
 
@@ -1800,6 +1889,8 @@ function applyLanguage() {
 	);
 	joystickBase.setAttribute("aria-label", settings.language === "zh" ? "移动摇杆" : "Movement joystick");
 	jumpButton.setAttribute("aria-label", settings.language === "zh" ? "跳跃" : "Jump");
+	closeSupportButton.setAttribute("aria-label", settings.language === "zh" ? "关闭" : "Close");
+	updateSupportPayment();
 }
 
 function loadSettings() {
@@ -1862,7 +1953,7 @@ function hasCommandModifier(event) {
 // ===== 渲染尺寸与主循环 =====
 function resizeRenderer() {
 	const width = window.innerWidth;
-	const height = window.innerHeight;
+	const height = getGameViewportHeight();
 	const aspect = width / height;
 	let halfHeight = cameraHeight / 2;
 	let halfWidth = halfHeight * aspect;
