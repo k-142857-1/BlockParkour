@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
 		<title>3D Block</title>
 		<link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg?v=2" />
-		<link rel="stylesheet" href="./src/style.css?v=11" />
+		<link rel="stylesheet" href="./src/style.css?v=12" />
 	</head>
 	<body>
 		<canvas id="game-canvas" aria-label="3D Block game"></canvas>
@@ -71,16 +71,14 @@
 					<div class="saved-game-list" id="saved-game-list"></div>
 				</section>
 			</div>
-			<a
+			<button
 				class="support-button"
 				id="support-button"
-				href="https://github.com/k-142857-1/BlockParkour"
-				target="_blank"
-				rel="noopener noreferrer"
+				type="button"
 				data-i18n="supportUs"
 			>
 				支持我们
-			</a>
+			</button>
 		</main>
 		<aside class="ad-area" id="ad-area" aria-label="广告位">
 			<div class="ad-slot" id="ad-slot"></div>
@@ -97,6 +95,30 @@
 						退出到主界面
 					</button>
 				</div>
+			</section>
+		</div>
+
+		<div class="modal-backdrop" id="support-modal" hidden>
+			<section class="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-title">
+				<div class="modal-header">
+					<h2 id="support-title" data-i18n="supportTitle">支持我们</h2>
+					<button class="icon-button" id="close-support-button" type="button" aria-label="关闭">
+						X
+					</button>
+				</div>
+				<p class="support-description" data-i18n="supportDescription">选择一个金额支持我们。</p>
+				<div class="support-amounts" role="group" aria-label="支持金额">
+					<button class="support-amount is-selected" type="button" data-amount="0.1" aria-pressed="true">
+						&#165;0.10
+					</button>
+					<button class="support-amount" type="button" data-amount="0.5" aria-pressed="false">
+						&#165;0.50
+					</button>
+				</div>
+				<button class="primary-button support-pay-button" id="support-pay-button" type="button">
+					支付 &#165;0.10
+				</button>
+				<p class="support-payment-hint" id="support-payment-hint" role="status" aria-live="polite"></p>
 			</section>
 		</div>
 
@@ -132,6 +154,6 @@
 			</section>
 		</div>
 
-		<script type="module" src="./src/main.js?v=11"></script>
+		<script type="module" src="./src/main.js?v=12"></script>
 	</body>
 </html>

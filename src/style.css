@@ -525,7 +525,8 @@ h1 {
 }
 
 .settings-modal,
-.pause-modal {
+.pause-modal,
+.support-modal {
 	width: min(460px, 100%);
 	max-height: calc(100dvh - var(--ad-area-height) - 48px);
 	overflow-y: auto;
@@ -539,6 +540,10 @@ h1 {
 .pause-modal {
 	width: min(300px, 100%);
 	text-align: center;
+}
+
+.support-modal {
+	width: min(380px, 100%);
 }
 
 .pause-actions {
@@ -645,6 +650,56 @@ select {
 
 .arrange-controls-button {
 	width: 100%;
+}
+
+.support-description {
+	margin-bottom: 18px;
+	color: var(--muted);
+	line-height: 1.6;
+}
+
+.support-amounts {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	margin-bottom: 16px;
+	border-radius: 8px;
+	padding: 4px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.support-amount {
+	min-width: 0;
+	min-height: 48px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--text);
+	font-weight: 800;
+	cursor: pointer;
+}
+
+.support-amount:hover {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.support-amount.is-selected {
+	border-color: var(--accent-strong);
+	background: rgba(255, 207, 86, 0.13);
+	color: var(--accent-strong);
+}
+
+.support-pay-button {
+	width: 100%;
+}
+
+.support-payment-hint {
+	min-height: 24px;
+	margin: 12px 0 0;
+	color: var(--accent-strong);
+	font-size: 0.9rem;
+	line-height: 1.5;
+	text-align: center;
 }
 
 @media (max-width: 560px) {
