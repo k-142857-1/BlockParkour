@@ -16,6 +16,7 @@
 body {
 	margin: 0;
 	min-height: 100vh;
+	min-height: 100dvh;
 	overflow: hidden;
 	background: var(--bg);
 	font-family:
@@ -31,6 +32,8 @@ button {
 	display: block;
 	width: 100vw;
 	height: 100vh;
+	height: 100dvh;
+	touch-action: none;
 }
 
 .start-screen {
@@ -38,7 +41,7 @@ button {
 	inset: 0;
 	display: grid;
 	place-items: center;
-	padding: 32px;
+	padding: 32px 32px 100px;
 	z-index: 10;
 	background:
 		linear-gradient(90deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.46)),
@@ -46,6 +49,7 @@ button {
 }
 
 .start-screen.is-hidden {
+	visibility: hidden;
 	pointer-events: none;
 	opacity: 0;
 	transition: opacity 220ms ease;
@@ -101,7 +105,8 @@ h1 {
 .primary-button,
 .ghost-button,
 .icon-button,
-.keybind-button {
+.keybind-button,
+.support-button {
 	min-height: 44px;
 	border-radius: 8px;
 	border: 1px solid transparent;
@@ -135,7 +140,7 @@ h1 {
 .game-settings-button,
 .game-pause-button {
 	position: fixed;
-	top: 18px;
+	top: max(18px, env(safe-area-inset-top));
 	z-index: 12;
 	width: 46px;
 	height: 46px;
@@ -151,17 +156,17 @@ h1 {
 }
 
 .game-settings-button {
-	right: 76px;
+	right: max(76px, calc(env(safe-area-inset-right) + 76px));
 }
 
 .game-pause-button {
-	right: 18px;
+	right: max(18px, env(safe-area-inset-right));
 }
 
 .gem-hud {
 	position: fixed;
-	right: 18px;
-	bottom: 18px;
+	right: max(18px, env(safe-area-inset-right));
+	bottom: max(18px, env(safe-area-inset-bottom));
 	z-index: 12;
 	display: flex;
 	gap: 10px;
@@ -182,9 +187,18 @@ h1 {
 .gem-counter {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 7px;
 	min-width: 54px;
+	min-height: 44px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	padding: 4px 7px;
+	background: transparent;
+	color: inherit;
 	font-weight: 800;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .gem-counter img {
@@ -193,10 +207,145 @@ h1 {
 	display: block;
 }
 
+.gem-counter:hover:not(:disabled),
+.gem-counter:active:not(:disabled) {
+	border-color: rgba(255, 255, 255, 0.2);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.gem-counter:disabled {
+	opacity: 0.42;
+	cursor: default;
+}
+
+.touch-controls {
+	position: fixed;
+	inset: 0;
+	z-index: 11;
+	pointer-events: none;
+}
+
+.touch-controls[hidden],
+.control-layout-toolbar[hidden] {
+	display: none;
+}
+
+.touch-control {
+	position: fixed;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	pointer-events: auto;
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.joystick-base {
+	position: relative;
+	width: 112px;
+	height: 112px;
+	border: 2px solid rgba(17, 22, 30, 0.42);
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.58);
+	box-shadow: 0 8px 26px rgba(17, 22, 30, 0.18);
+	backdrop-filter: blur(5px);
+}
+
+.joystick-knob {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background: rgba(17, 22, 30, 0.78);
+	box-shadow: 0 4px 12px rgba(17, 22, 30, 0.24);
+	transform: translate(-50%, -50%);
+}
+
+.jump-button {
+	display: grid;
+	place-items: center;
+	width: 72px;
+	height: 72px;
+	border: 2px solid rgba(17, 22, 30, 0.42);
+	border-radius: 50%;
+	padding: 0;
+	background: rgba(255, 207, 86, 0.82);
+	box-shadow: 0 8px 26px rgba(17, 22, 30, 0.18);
+	color: #11151d;
+	font-size: 2rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.jump-button.is-pressed {
+	transform: translate(-50%, -50%) scale(0.92);
+	background: #ffcf56;
+}
+
+.is-arranging .touch-control,
+.is-arranging .gem-hud {
+	outline: 2px dashed var(--accent-strong);
+	outline-offset: 5px;
+	cursor: move;
+}
+
+.is-arranging .start-screen {
+	pointer-events: none;
+}
+
+.is-arranging .joystick-knob {
+	transform: translate(-50%, -50%);
+}
+
+.control-layout-toolbar {
+	position: fixed;
+	top: max(14px, env(safe-area-inset-top));
+	left: 50%;
+	z-index: 30;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	max-width: calc(100vw - 24px);
+	border: 1px solid var(--panel-border);
+	border-radius: 8px;
+	padding: 8px;
+	background: rgba(17, 22, 30, 0.94);
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+	color: var(--text);
+	transform: translateX(-50%);
+	backdrop-filter: blur(10px);
+}
+
+.control-layout-toolbar span {
+	padding: 0 8px;
+	color: var(--muted);
+	font-size: 0.88rem;
+	white-space: nowrap;
+}
+
+.control-layout-toolbar .primary-button,
+.control-layout-toolbar .ghost-button {
+	min-width: auto;
+	min-height: 38px;
+	padding: 0 12px;
+	white-space: nowrap;
+}
+
+.touch-enabled .gem-hud,
+.is-arranging .gem-hud {
+	right: auto;
+	bottom: auto;
+	transform: translate(-50%, -50%);
+	touch-action: none;
+}
+
 .view-toast,
 .save-toast {
 	position: fixed;
-	top: 20px;
+	top: max(20px, env(safe-area-inset-top));
 	z-index: 13;
 	display: flex;
 	align-items: center;
@@ -225,7 +374,7 @@ h1 {
 }
 
 .save-toast {
-	left: 18px;
+	left: max(18px, env(safe-area-inset-left));
 	max-width: min(260px, calc(100vw - 36px));
 	transform: translateY(-8px);
 }
@@ -252,6 +401,37 @@ h1 {
 	padding-top: 22px;
 	border-top: 1px solid rgba(255, 255, 255, 0.14);
 	text-align: left;
+}
+
+.ad-slot {
+	position: fixed;
+	left: 50%;
+	bottom: max(16px, env(safe-area-inset-bottom));
+	width: min(468px, calc(100vw - 220px));
+	height: 60px;
+	border: 1px solid rgba(17, 22, 30, 0.12);
+	border-radius: 6px;
+	background: rgba(17, 22, 30, 0.025);
+	transform: translateX(-50%);
+}
+
+.support-button {
+	position: fixed;
+	right: max(18px, env(safe-area-inset-right));
+	bottom: max(18px, env(safe-area-inset-bottom));
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-color: rgba(17, 22, 30, 0.18);
+	background: rgba(17, 22, 30, 0.82);
+	color: #ffffff;
+	font-weight: 800;
+	text-decoration: none;
+}
+
+.support-button:hover {
+	transform: translateY(-1px);
 }
 
 .save-picker[hidden] {
@@ -439,13 +619,41 @@ select {
 	line-height: 1.6;
 }
 
+.control-layout-settings {
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	padding-top: 20px;
+}
+
+.control-layout-settings h3 {
+	margin-bottom: 8px;
+	font-size: 1rem;
+}
+
+.control-layout-settings p {
+	margin-bottom: 16px;
+	color: var(--muted);
+	font-size: 0.92rem;
+	line-height: 1.6;
+}
+
+.arrange-controls-button {
+	width: 100%;
+}
+
 @media (max-width: 560px) {
 	.start-screen {
-		padding: 24px;
+		padding: max(18px, env(safe-area-inset-top)) 18px
+			calc(128px + env(safe-area-inset-bottom));
 	}
 
 	.start-panel {
-		padding: 28px 22px;
+		max-height: calc(100dvh - 170px);
+		overflow-y: auto;
+		padding: 24px 20px;
+	}
+
+	h1 {
+		font-size: 3.25rem;
 	}
 
 	.menu-actions {
@@ -468,7 +676,92 @@ select {
 	}
 
 	.gem-hud {
-		right: 12px;
-		bottom: 12px;
+		right: max(12px, env(safe-area-inset-right));
+		bottom: max(12px, env(safe-area-inset-bottom));
+		padding: 6px;
+	}
+
+	.gem-counter {
+		min-width: 48px;
+		padding: 2px 5px;
+	}
+
+	.gem-counter img {
+		width: 25px;
+		height: 25px;
+	}
+
+	.ad-slot {
+		bottom: max(12px, env(safe-area-inset-bottom));
+		width: min(320px, calc(100vw - 24px));
+		height: 50px;
+	}
+
+	.support-button {
+		right: max(12px, env(safe-area-inset-right));
+		bottom: calc(74px + env(safe-area-inset-bottom));
+		min-height: 40px;
+		padding: 0 14px;
+	}
+
+	.settings-modal {
+		max-height: calc(100dvh - 28px);
+		padding: 20px;
+	}
+
+	.control-layout-toolbar {
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+
+	.control-layout-toolbar span {
+		width: 100%;
+		text-align: center;
+	}
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+	.start-screen {
+		place-items: center;
+		padding: 12px 150px 12px 12px;
+	}
+
+	.start-panel {
+		width: min(420px, 100%);
+		max-height: calc(100dvh - 24px);
+		padding: 18px 22px;
+	}
+
+	h1 {
+		margin-bottom: 8px;
+		font-size: 2.8rem;
+	}
+
+	.menu-actions {
+		margin-top: 16px;
+	}
+
+	.ad-slot {
+		left: auto;
+		right: max(12px, env(safe-area-inset-right));
+		bottom: max(12px, env(safe-area-inset-bottom));
+		width: 120px;
+		height: 50px;
+		transform: none;
+	}
+
+	.support-button {
+		right: max(12px, env(safe-area-inset-right));
+		bottom: calc(74px + env(safe-area-inset-bottom));
+	}
+
+	.joystick-base {
+		width: 96px;
+		height: 96px;
+	}
+
+	.jump-button {
+		width: 64px;
+		height: 64px;
 	}
 }

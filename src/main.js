@@ -13,8 +13,6 @@ const quitButton = document.querySelector("#quit-button");
 const settingsModal = document.querySelector("#settings-modal");
 const closeSettingsButton = document.querySelector("#close-settings-button");
 const languageSelect = document.querySelector("#language-select");
-const keybindHint = document.querySelector("#keybind-hint");
-const keybindButtons = document.querySelectorAll(".keybind-button");
 const viewToast = document.querySelector("#view-toast");
 const saveToast = document.querySelector("#save-toast");
 const savePicker = document.querySelector("#save-picker");
@@ -23,6 +21,17 @@ const savedGameList = document.querySelector("#saved-game-list");
 const gemHud = document.querySelector("#gem-hud");
 const sideToTopCount = document.querySelector("#side-to-top-count");
 const topToSideCount = document.querySelector("#top-to-side-count");
+const sideToTopGemButton = document.querySelector("#side-to-top-gem-button");
+const topToSideGemButton = document.querySelector("#top-to-side-gem-button");
+const touchControls = document.querySelector("#touch-controls");
+const joystickControl = document.querySelector("#joystick-control");
+const joystickBase = document.querySelector("#joystick-base");
+const joystickKnob = document.querySelector("#joystick-knob");
+const jumpButton = document.querySelector("#jump-button");
+const arrangeControlsButton = document.querySelector("#arrange-controls-button");
+const controlLayoutToolbar = document.querySelector("#control-layout-toolbar");
+const resetControlsButton = document.querySelector("#reset-controls-button");
+const saveControlsButton = document.querySelector("#save-controls-button");
 const settingsStorageKey = "3d-block-settings";
 const progressStorageKey = "3d-block-progress-v1";
 
@@ -34,20 +43,16 @@ const translations = {
 		settings: "设置",
 		settingsTitle: "设置",
 		language: "语言",
-		keybinds: "键位",
-		moveForward: "前进",
-		moveBackward: "后退",
-		moveLeft: "左移",
-		moveRight: "右移",
-		jump: "跳跃",
-		switchTopView: "切到俯视",
-		switchSideView: "切到侧视",
-		returnToCheckpoint: "返回存档点",
+		controlLayout: "按键摆放",
+		controlLayoutHint: "进入调整模式后，可拖动摇杆、跳跃键和宝石栏。",
+		arrangeControls: "调整按键摆放",
+		dragControls: "拖动按键调整位置",
+		resetLayout: "恢复默认",
+		saveLayout: "完成",
+		supportUs: "支持我们",
 		pauseTitle: "暂停",
 		resumeGame: "继续",
 		quitToMenu: "退出到主界面",
-		keybindHint: "点击一个键位按钮，然后按下新的按键。",
-		waitingForKey: "请按下新的按键...",
 		topViewHint: "已切换到俯视视角",
 		sideViewHint: "已切换到侧视视角",
 		newGame: "新游戏",
@@ -67,20 +72,16 @@ const translations = {
 		settings: "Settings",
 		settingsTitle: "Settings",
 		language: "Language",
-		keybinds: "Key Bindings",
-		moveForward: "Move Forward",
-		moveBackward: "Move Backward",
-		moveLeft: "Move Left",
-		moveRight: "Move Right",
-		jump: "Jump",
-		switchTopView: "Switch to Top",
-		switchSideView: "Switch to Side",
-		returnToCheckpoint: "Return to Checkpoint",
+		controlLayout: "Control Layout",
+		controlLayoutHint: "Drag the joystick, jump button, and gem bar in layout mode.",
+		arrangeControls: "Arrange Controls",
+		dragControls: "Drag controls to reposition",
+		resetLayout: "Reset",
+		saveLayout: "Done",
+		supportUs: "Support Us",
 		pauseTitle: "Paused",
 		resumeGame: "Resume",
 		quitToMenu: "Quit to Menu",
-		keybindHint: "Click a key button, then press a new key.",
-		waitingForKey: "Press a new key...",
 		topViewHint: "Switched to top view",
 		sideViewHint: "Switched to side view",
 		newGame: "New Game",
@@ -96,6 +97,12 @@ const translations = {
 	},
 };
 
+const defaultControlLayout = {
+	joystick: { x: 0.16, y: 0.78 },
+	jump: { x: 0.82, y: 0.7 },
+	gems: { x: 0.82, y: 0.88 },
+};
+
 // 当前设置会保存到 localStorage。
 const settings = {
 	language: "zh",
@@ -109,10 +116,13 @@ const settings = {
 		switchSideView: "E",
 		returnToCheckpoint: "R",
 	},
+	controlLayout: cloneControlLayout(defaultControlLayout),
 };
 
 // ===== 游戏状态与基础参数 =====
 const pressedKeys = new Set();
+const touchInput = { x: 0, y: 0, jump: false };
+const touchMediaQuery = window.matchMedia("(pointer: coarse)");
 const levelBlocks = [];
 const levelGems = [];
 const levelCheckpoints = [];
@@ -170,7 +180,11 @@ let cameraHeight = fallbackMap.camera.height;
 let gameStarted = false;
 let gamePaused = false;
 let viewMode = viewModes.SIDE;
-let listeningAction = null;
+let touchEnabled = touchMediaQuery.matches || navigator.maxTouchPoints > 0;
+let joystickPointerId = null;
+let jumpPointerId = null;
+let layoutEditing = false;
+let layoutDrag = null;
 let lastTime = performance.now();
 let viewHintTimer = null;
 let saveHintTimer = null;
@@ -273,7 +287,7 @@ resizeRenderer();
 loadMap();
 bindUi();
 applyLanguage();
-renderKeybinds();
+initializeTouchControls();
 updateViewPresentation();
 animate();
 
@@ -299,24 +313,49 @@ function bindUi() {
 		applyLanguage();
 	});
 
-	keybindButtons.forEach((button) => {
-		button.addEventListener("click", () => {
-			listeningAction = button.dataset.action;
-			keybindButtons.forEach((item) => item.classList.remove("is-listening"));
-			button.classList.add("is-listening");
-			keybindHint.textContent = translations[settings.language].waitingForKey;
-		});
+	sideToTopGemButton.addEventListener("click", () => {
+		if (!layoutEditing && gameStarted && !gamePaused) {
+			setViewMode(viewModes.TOP);
+		}
 	});
+	topToSideGemButton.addEventListener("click", () => {
+		if (!layoutEditing && gameStarted && !gamePaused) {
+			setViewMode(viewModes.SIDE);
+		}
+	});
+	arrangeControlsButton.addEventListener("click", startControlLayoutEditing);
+	resetControlsButton.addEventListener("click", resetControlLayout);
+	saveControlsButton.addEventListener("click", finishControlLayoutEditing);
+
+	joystickControl.addEventListener("pointerdown", handleJoystickPointerDown);
+	joystickControl.addEventListener("pointermove", handleJoystickPointerMove);
+	joystickControl.addEventListener("pointerup", handleJoystickPointerEnd);
+	joystickControl.addEventListener("pointercancel", handleJoystickPointerEnd);
+	jumpButton.addEventListener("pointerdown", handleJumpPointerDown);
+	jumpButton.addEventListener("pointerup", handleJumpPointerEnd);
+	jumpButton.addEventListener("pointercancel", handleJumpPointerEnd);
+	gemHud.addEventListener("pointerdown", (event) => {
+		if (layoutEditing) {
+			startLayoutDrag(event, "gems", gemHud);
+		}
+	});
+	window.addEventListener("pointermove", updateLayoutDrag);
+	window.addEventListener("pointerup", endLayoutDrag);
+	window.addEventListener("pointercancel", endLayoutDrag);
 
 	window.addEventListener("keydown", handleKeyDown);
 	window.addEventListener("keyup", (event) => {
 		const key = formatKey(event);
-		if (gameStarted && isGameplayKey(key)) {
+		if (gameStarted && isGameplayKey(key) && !hasCommandModifier(event)) {
 			event.preventDefault();
 		}
 		pressedKeys.delete(key);
 	});
-	window.addEventListener("resize", resizeRenderer);
+	window.addEventListener("resize", () => {
+		resizeRenderer();
+		applyControlLayout();
+	});
+	touchMediaQuery.addEventListener("change", updateTouchCapability);
 	window.addEventListener("beforeunload", () => {
 		if (gameStarted) {
 			saveProgress({ showHint: false });
@@ -446,6 +485,7 @@ function normalizeGem(gemData, index) {
 function normalizeCheckpoint(checkpointData, index) {
 	return {
 		id: checkpointData.id || `checkpoint-${index + 1}`,
+		progressIndex: Number.isFinite(checkpointData.progress) ? checkpointData.progress : index,
 		x: checkpointData.x,
 		y: checkpointData.y,
 		z: checkpointData.z ?? 0.9,
@@ -533,6 +573,7 @@ function beginGame() {
 	gemHud.hidden = false;
 	pauseModal.hidden = true;
 	closeSettings();
+	updateTouchControlsVisibility();
 	updateGemHud();
 }
 
@@ -562,6 +603,7 @@ function resetCheckpointState() {
 	activatedCheckpointIds = new Set();
 	lastCheckpoint = {
 		id: "spawn",
+		progressIndex: -1,
 		x: spawn.x,
 		y: spawn.y,
 		z: 0,
@@ -570,26 +612,251 @@ function resetCheckpointState() {
 	refreshCheckpointStates();
 }
 
+// ===== 触控与按键摆放 =====
+function initializeTouchControls() {
+	document.body.classList.toggle("touch-enabled", touchEnabled);
+	applyControlLayout();
+	updateTouchControlsVisibility();
+}
+
+function updateTouchCapability() {
+	touchEnabled = touchMediaQuery.matches || navigator.maxTouchPoints > 0;
+	document.body.classList.toggle("touch-enabled", touchEnabled);
+	updateTouchControlsVisibility();
+	applyControlLayout();
+}
+
+function updateTouchControlsVisibility() {
+	const shouldShow = layoutEditing || (gameStarted && touchEnabled);
+
+	touchControls.hidden = !shouldShow;
+	if (!layoutEditing && !gameStarted) {
+		gemHud.hidden = true;
+	}
+
+	if (shouldShow) {
+		applyControlLayout();
+	}
+}
+
+function handleJoystickPointerDown(event) {
+	event.preventDefault();
+
+	if (layoutEditing) {
+		startLayoutDrag(event, "joystick", joystickControl);
+		return;
+	}
+
+	if (!gameStarted || gamePaused || joystickPointerId !== null) {
+		return;
+	}
+
+	joystickPointerId = event.pointerId;
+	joystickControl.setPointerCapture(event.pointerId);
+	updateJoystickInput(event);
+}
+
+function handleJoystickPointerMove(event) {
+	if (event.pointerId === joystickPointerId) {
+		updateJoystickInput(event);
+	}
+}
+
+function handleJoystickPointerEnd(event) {
+	if (event.pointerId !== joystickPointerId) {
+		return;
+	}
+
+	joystickPointerId = null;
+	touchInput.x = 0;
+	touchInput.y = 0;
+	joystickKnob.style.transform = "translate(-50%, -50%)";
+}
+
+function updateJoystickInput(event) {
+	const bounds = joystickBase.getBoundingClientRect();
+	const centerX = bounds.left + bounds.width / 2;
+	const centerY = bounds.top + bounds.height / 2;
+	const maxDistance = bounds.width * 0.31;
+	const deltaX = event.clientX - centerX;
+	const deltaY = event.clientY - centerY;
+	const distance = Math.hypot(deltaX, deltaY);
+	const scale = distance > maxDistance ? maxDistance / distance : 1;
+	const offsetX = deltaX * scale;
+	const offsetY = deltaY * scale;
+
+	touchInput.x = offsetX / maxDistance;
+	touchInput.y = -offsetY / maxDistance;
+	joystickKnob.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+}
+
+function handleJumpPointerDown(event) {
+	event.preventDefault();
+
+	if (layoutEditing) {
+		startLayoutDrag(event, "jump", jumpButton);
+		return;
+	}
+
+	if (!gameStarted || gamePaused || jumpPointerId !== null) {
+		return;
+	}
+
+	jumpPointerId = event.pointerId;
+	jumpButton.setPointerCapture(event.pointerId);
+	touchInput.jump = true;
+	player.jumpBufferTimer = physics.jumpBufferTime;
+	jumpButton.classList.add("is-pressed");
+}
+
+function handleJumpPointerEnd(event) {
+	if (event.pointerId !== jumpPointerId) {
+		return;
+	}
+
+	jumpPointerId = null;
+	touchInput.jump = false;
+	jumpButton.classList.remove("is-pressed");
+}
+
+function resetTouchInput() {
+	joystickPointerId = null;
+	jumpPointerId = null;
+	touchInput.x = 0;
+	touchInput.y = 0;
+	touchInput.jump = false;
+	joystickKnob.style.transform = "translate(-50%, -50%)";
+	jumpButton.classList.remove("is-pressed");
+}
+
+function startControlLayoutEditing() {
+	closeSettings();
+	layoutEditing = true;
+	layoutDrag = null;
+	resetTouchInput();
+	document.body.classList.add("is-arranging");
+	controlLayoutToolbar.hidden = false;
+	touchControls.hidden = false;
+	gemHud.hidden = false;
+	applyControlLayout();
+	updateGemHud();
+}
+
+function finishControlLayoutEditing() {
+	layoutEditing = false;
+	layoutDrag = null;
+	document.body.classList.remove("is-arranging");
+	controlLayoutToolbar.hidden = true;
+	saveSettings();
+	resetTouchInput();
+	gemHud.hidden = !gameStarted;
+	updateTouchControlsVisibility();
+	updateGemHud();
+}
+
+function resetControlLayout() {
+	settings.controlLayout = cloneControlLayout(defaultControlLayout);
+	applyControlLayout();
+}
+
+function startLayoutDrag(event, controlName, element) {
+	event.preventDefault();
+	event.stopPropagation();
+
+	const bounds = element.getBoundingClientRect();
+
+	layoutDrag = {
+		controlName,
+		element,
+		pointerId: event.pointerId,
+		offsetX: event.clientX - (bounds.left + bounds.width / 2),
+		offsetY: event.clientY - (bounds.top + bounds.height / 2),
+	};
+}
+
+function updateLayoutDrag(event) {
+	if (!layoutDrag || event.pointerId !== layoutDrag.pointerId) {
+		return;
+	}
+
+	event.preventDefault();
+	const bounds = layoutDrag.element.getBoundingClientRect();
+	const edgePadding = 10;
+	const toolbarPadding = controlLayoutToolbar.getBoundingClientRect().bottom + 10;
+	const minX = bounds.width / 2 + edgePadding;
+	const maxX = window.innerWidth - bounds.width / 2 - edgePadding;
+	const minY = Math.max(bounds.height / 2 + edgePadding, toolbarPadding);
+	const maxY = window.innerHeight - bounds.height / 2 - edgePadding;
+	const centerX = clamp(event.clientX - layoutDrag.offsetX, minX, maxX);
+	const centerY = clamp(event.clientY - layoutDrag.offsetY, minY, maxY);
+
+	settings.controlLayout[layoutDrag.controlName] = {
+		x: centerX / window.innerWidth,
+		y: centerY / window.innerHeight,
+	};
+	applyControlLayout();
+}
+
+function endLayoutDrag(event) {
+	if (layoutDrag && event.pointerId === layoutDrag.pointerId) {
+		layoutDrag = null;
+	}
+}
+
+function applyControlLayout() {
+	positionTouchControl(joystickControl, settings.controlLayout.joystick);
+	positionTouchControl(jumpButton, settings.controlLayout.jump);
+
+	if (touchEnabled || layoutEditing) {
+		positionTouchControl(gemHud, settings.controlLayout.gems);
+	} else {
+		gemHud.style.removeProperty("left");
+		gemHud.style.removeProperty("top");
+	}
+}
+
+function positionTouchControl(element, position) {
+	const halfWidth = element.offsetWidth / 2;
+	const halfHeight = element.offsetHeight / 2;
+	const edgePadding = 10;
+	const minX = (halfWidth + edgePadding) / window.innerWidth;
+	const maxX = 1 - minX;
+	const minY = (halfHeight + edgePadding) / window.innerHeight;
+	const maxY = 1 - minY;
+	const x = clamp(position.x, minX, maxX);
+	const y = clamp(position.y, minY, maxY);
+
+	element.style.left = `${x * 100}%`;
+	element.style.top = `${y * 100}%`;
+}
+
+function cloneControlLayout(layout) {
+	return {
+		joystick: { ...layout.joystick },
+		jump: { ...layout.jump },
+		gems: { ...layout.gems },
+	};
+}
+
+function clamp(value, min, max) {
+	return Math.min(Math.max(value, min), max);
+}
+
 // ===== 输入处理 =====
 function handleKeyDown(event) {
 	if (event.key === "Escape") {
 		event.preventDefault();
+		if (layoutEditing) {
+			finishControlLayoutEditing();
+			return;
+		}
+
 		if (!settingsModal.hidden) {
 			closeSettings();
 			return;
 		}
 
 		togglePause();
-		return;
-	}
-
-	if (listeningAction) {
-		event.preventDefault();
-		settings.keybinds[listeningAction] = formatKey(event);
-		saveSettings();
-		listeningAction = null;
-		renderKeybinds();
-		keybindHint.textContent = translations[settings.language].keybindHint;
 		return;
 	}
 
@@ -602,6 +869,10 @@ function handleKeyDown(event) {
 	}
 
 	const key = formatKey(event);
+
+	if (hasCommandModifier(event)) {
+		return;
+	}
 
 	if (isGameplayKey(key)) {
 		event.preventDefault();
@@ -691,7 +962,8 @@ function updateSideView(deltaTime) {
 	const leftPressed = isActionPressed("moveLeft") || isActionPressed("moveBackward");
 	const rightPressed = isActionPressed("moveRight") || isActionPressed("moveForward");
 	const jumpHeld = isActionPressed("jump");
-	const horizontalInput = Number(rightPressed) - Number(leftPressed);
+	const keyboardInput = Number(rightPressed) - Number(leftPressed);
+	const horizontalInput = Math.abs(touchInput.x) > 0.12 ? touchInput.x : keyboardInput;
 
 	if (player.grounded) {
 		player.coyoteTimer = physics.coyoteTime;
@@ -755,9 +1027,13 @@ function updateTopView(deltaTime) {
 	const rightPressed = isActionPressed("moveRight");
 	const forwardPressed = isActionPressed("moveForward");
 	const backwardPressed = isActionPressed("moveBackward");
+	const keyboardX = Number(rightPressed) - Number(leftPressed);
+	const keyboardY = Number(forwardPressed) - Number(backwardPressed);
+	const inputX = Math.abs(touchInput.x) > 0.12 ? touchInput.x : keyboardX;
+	const inputY = Math.abs(touchInput.y) > 0.12 ? touchInput.y : keyboardY;
 
-	player.velocity.x = (Number(rightPressed) - Number(leftPressed)) * physics.moveSpeed;
-	player.velocity.y = (Number(forwardPressed) - Number(backwardPressed)) * physics.moveSpeed;
+	player.velocity.x = inputX * physics.moveSpeed;
+	player.velocity.y = inputY * physics.moveSpeed;
 	player.velocity.z = 0;
 
 	player.mesh.position.x += player.velocity.x * deltaTime;
@@ -787,6 +1063,7 @@ function updateViewHelpers() {
 function updateViewPresentation() {
 	updateViewHelpers();
 	updateShadowMode(viewMode === viewModes.TOP);
+	updateGemHud();
 }
 
 function updateShadowLayout() {
@@ -1009,17 +1286,27 @@ function activateCheckpoints() {
 			return;
 		}
 
-		if (!activatedCheckpointIds.has(checkpoint.id)) {
+		const isNewlyActivated = !activatedCheckpointIds.has(checkpoint.id);
+
+		if (isNewlyActivated) {
 			activatedCheckpointIds.add(checkpoint.id);
 			refreshCheckpointStates();
 		}
 
-		if (lastCheckpoint?.id === checkpoint.id) {
+		const currentProgressIndex = Number.isFinite(lastCheckpoint?.progressIndex)
+			? lastCheckpoint.progressIndex
+			: getCheckpointProgressIndex(lastCheckpoint?.id);
+
+		if (checkpoint.progressIndex <= currentProgressIndex) {
+			if (isNewlyActivated) {
+				saveProgress({ showHint: false });
+			}
 			return;
 		}
 
 		lastCheckpoint = {
 			id: checkpoint.id,
+			progressIndex: checkpoint.progressIndex,
 			x: checkpoint.x,
 			y: checkpoint.y,
 			z: 0,
@@ -1088,9 +1375,31 @@ function refreshGemVisibility() {
 function updateGemHud() {
 	sideToTopCount.textContent = String(gemInventory[gemTypes.SIDE_TO_TOP]);
 	topToSideCount.textContent = String(gemInventory[gemTypes.TOP_TO_SIDE]);
+	sideToTopGemButton.disabled = !layoutEditing && viewMode === viewModes.TOP;
+	topToSideGemButton.disabled = !layoutEditing && viewMode === viewModes.SIDE;
 }
 
 function isActionPressed(action) {
+	if (action === "jump" && touchInput.jump) {
+		return true;
+	}
+
+	if (action === "moveLeft" && touchInput.x < -0.12) {
+		return true;
+	}
+
+	if (action === "moveRight" && touchInput.x > 0.12) {
+		return true;
+	}
+
+	if (action === "moveForward" && touchInput.y > 0.12) {
+		return true;
+	}
+
+	if (action === "moveBackward" && touchInput.y < -0.12) {
+		return true;
+	}
+
 	return pressedKeys.has(settings.keybinds[action]);
 }
 
@@ -1113,6 +1422,7 @@ function pauseGame() {
 	}
 
 	pressedKeys.clear();
+	resetTouchInput();
 	gamePaused = true;
 	pauseModal.hidden = false;
 	resumeButton.focus();
@@ -1120,6 +1430,7 @@ function pauseGame() {
 
 function resumeGame() {
 	pressedKeys.clear();
+	resetTouchInput();
 	gamePaused = false;
 	pauseModal.hidden = true;
 }
@@ -1141,10 +1452,12 @@ function quitToMainMenu() {
 	gameStarted = false;
 	gamePaused = false;
 	pressedKeys.clear();
+	resetTouchInput();
 	pauseModal.hidden = true;
 	gameSettingsButton.hidden = true;
 	gamePauseButton.hidden = true;
 	gemHud.hidden = true;
+	updateTouchControlsVisibility();
 	startScreen.classList.remove("is-hidden");
 	viewMode = viewModes.SIDE;
 	hideViewHint();
@@ -1156,6 +1469,7 @@ function quitToMainMenu() {
 // ===== 设置弹窗 =====
 function openSettings() {
 	pressedKeys.clear();
+	resetTouchInput();
 	settingsModal.hidden = false;
 	languageSelect.focus();
 }
@@ -1163,9 +1477,6 @@ function openSettings() {
 function closeSettings() {
 	pressedKeys.clear();
 	settingsModal.hidden = true;
-	listeningAction = null;
-	keybindButtons.forEach((button) => button.classList.remove("is-listening"));
-	keybindHint.textContent = translations[settings.language].keybindHint;
 }
 
 // ===== 进度存档 =====
@@ -1341,8 +1652,10 @@ function applyProgressSave(save) {
 		[gemTypes.TOP_TO_SIDE]: Math.max(0, Number(save.gems?.inventory?.[gemTypes.TOP_TO_SIDE]) || 0),
 	};
 	collectedGemIds = new Set(Array.isArray(save.gems?.collectedIds) ? save.gems.collectedIds : []);
-	lastCheckpoint = normalizeSavedCheckpoint(save.checkpoint);
-	activatedCheckpointIds = normalizeActivatedCheckpointIds(save.checkpoints?.activatedIds, lastCheckpoint);
+	const savedCheckpoint = normalizeSavedCheckpoint(save.checkpoint);
+
+	activatedCheckpointIds = normalizeActivatedCheckpointIds(save.checkpoints?.activatedIds, savedCheckpoint);
+	lastCheckpoint = getFurthestProgressCheckpoint(savedCheckpoint, activatedCheckpointIds, viewMode);
 	player.mesh.position.set(position.x, position.y, position.z ?? 0);
 	player.velocity.set(velocity.x || 0, velocity.y || 0, velocity.z || 0);
 	player.grounded = Boolean(save.player?.grounded);
@@ -1371,6 +1684,7 @@ function normalizeSavedCheckpoint(checkpoint) {
 
 		return {
 			id: "spawn",
+			progressIndex: -1,
 			x: spawn.x,
 			y: spawn.y,
 			z: 0,
@@ -1380,10 +1694,44 @@ function normalizeSavedCheckpoint(checkpoint) {
 
 	return {
 		id: checkpoint.id || "checkpoint",
+		progressIndex: Number.isFinite(checkpoint.progressIndex)
+			? checkpoint.progressIndex
+			: getCheckpointProgressIndex(checkpoint.id),
 		x: checkpoint.x,
 		y: checkpoint.y,
 		z: checkpoint.z ?? 0,
 		viewMode: checkpoint.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE,
+	};
+}
+
+function getCheckpointProgressIndex(checkpointId) {
+	if (!checkpointId || checkpointId === "spawn") {
+		return -1;
+	}
+
+	return levelCheckpoints.find((checkpoint) => checkpoint.id === checkpointId)?.progressIndex ?? -1;
+}
+
+function getFurthestProgressCheckpoint(savedCheckpoint, activatedIds, fallbackViewMode) {
+	const furthestCheckpoint = levelCheckpoints
+		.filter((checkpoint) => activatedIds.has(checkpoint.id))
+		.reduce(
+			(furthest, checkpoint) =>
+				!furthest || checkpoint.progressIndex > furthest.progressIndex ? checkpoint : furthest,
+			null,
+		);
+
+	if (!furthestCheckpoint || furthestCheckpoint.progressIndex <= savedCheckpoint.progressIndex) {
+		return savedCheckpoint;
+	}
+
+	return {
+		id: furthestCheckpoint.id,
+		progressIndex: furthestCheckpoint.progressIndex,
+		x: furthestCheckpoint.x,
+		y: furthestCheckpoint.y,
+		z: 0,
+		viewMode: fallbackViewMode,
 	};
 }
 
@@ -1441,6 +1789,17 @@ function applyLanguage() {
 	if (!savePicker.hidden) {
 		renderSavedGameList();
 	}
+
+	sideToTopGemButton.setAttribute(
+		"aria-label",
+		settings.language === "zh" ? "切换到俯视视角" : "Switch to top view",
+	);
+	topToSideGemButton.setAttribute(
+		"aria-label",
+		settings.language === "zh" ? "切换到侧视视角" : "Switch to side view",
+	);
+	joystickBase.setAttribute("aria-label", settings.language === "zh" ? "移动摇杆" : "Movement joystick");
+	jumpButton.setAttribute("aria-label", settings.language === "zh" ? "跳跃" : "Jump");
 }
 
 function loadSettings() {
@@ -1465,17 +1824,23 @@ function loadSettings() {
 			settings.keybinds[action] = savedSettings.keybinds[action];
 		}
 	});
+
+	settings.controlLayout = {
+		joystick: normalizeControlPosition(savedSettings.controlLayout?.joystick, defaultControlLayout.joystick),
+		jump: normalizeControlPosition(savedSettings.controlLayout?.jump, defaultControlLayout.jump),
+		gems: normalizeControlPosition(savedSettings.controlLayout?.gems, defaultControlLayout.gems),
+	};
 }
 
 function saveSettings() {
 	localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
 }
 
-function renderKeybinds() {
-	keybindButtons.forEach((button) => {
-		button.textContent = settings.keybinds[button.dataset.action];
-		button.classList.remove("is-listening");
-	});
+function normalizeControlPosition(position, fallback) {
+	return {
+		x: Number.isFinite(position?.x) ? clamp(position.x, 0.05, 0.95) : fallback.x,
+		y: Number.isFinite(position?.y) ? clamp(position.y, 0.05, 0.95) : fallback.y,
+	};
 }
 
 function formatKey(event) {
@@ -1490,13 +1855,22 @@ function formatKey(event) {
 	return event.key;
 }
 
+function hasCommandModifier(event) {
+	return event.ctrlKey || event.metaKey || event.altKey;
+}
+
 // ===== 渲染尺寸与主循环 =====
 function resizeRenderer() {
 	const width = window.innerWidth;
 	const height = window.innerHeight;
 	const aspect = width / height;
-	const halfHeight = cameraHeight / 2;
-	const halfWidth = halfHeight * aspect;
+	let halfHeight = cameraHeight / 2;
+	let halfWidth = halfHeight * aspect;
+
+	if (width <= 600 && halfWidth < 4.5) {
+		halfWidth = 4.5;
+		halfHeight = halfWidth / aspect;
+	}
 
 	camera.left = -halfWidth;
 	camera.right = halfWidth;
@@ -1512,7 +1886,7 @@ function animate(time = performance.now()) {
 	const deltaTime = Math.min((time - lastTime) / 1000, 1 / 30);
 	lastTime = time;
 
-	if (gameStarted && !gamePaused && settingsModal.hidden) {
+	if (gameStarted && !gamePaused && !layoutEditing && settingsModal.hidden) {
 		updateGame(deltaTime);
 		maybeAutoSaveProgress(time);
 	}
