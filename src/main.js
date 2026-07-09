@@ -2,6 +2,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.m
 
 // ===== DOM 与菜单设置 =====
 const canvas = document.querySelector("#game-canvas");
+const adArea = document.querySelector("#ad-area");
 const startScreen = document.querySelector("#start-screen");
 const startButton = document.querySelector("#start-button");
 const settingsButton = document.querySelector("#settings-button");
@@ -781,18 +782,19 @@ function updateLayoutDrag(event) {
 
 	event.preventDefault();
 	const bounds = layoutDrag.element.getBoundingClientRect();
+	const gameViewportHeight = getGameViewportHeight();
 	const edgePadding = 10;
 	const toolbarPadding = controlLayoutToolbar.getBoundingClientRect().bottom + 10;
 	const minX = bounds.width / 2 + edgePadding;
 	const maxX = window.innerWidth - bounds.width / 2 - edgePadding;
 	const minY = Math.max(bounds.height / 2 + edgePadding, toolbarPadding);
-	const maxY = window.innerHeight - bounds.height / 2 - edgePadding;
+	const maxY = Math.max(minY, gameViewportHeight - bounds.height / 2 - edgePadding);
 	const centerX = clamp(event.clientX - layoutDrag.offsetX, minX, maxX);
 	const centerY = clamp(event.clientY - layoutDrag.offsetY, minY, maxY);
 
 	settings.controlLayout[layoutDrag.controlName] = {
 		x: centerX / window.innerWidth,
-		y: centerY / window.innerHeight,
+		y: centerY / gameViewportHeight,
 	};
 	applyControlLayout();
 }
@@ -816,18 +818,19 @@ function applyControlLayout() {
 }
 
 function positionTouchControl(element, position) {
+	const gameViewportHeight = getGameViewportHeight();
 	const halfWidth = element.offsetWidth / 2;
 	const halfHeight = element.offsetHeight / 2;
 	const edgePadding = 10;
 	const minX = (halfWidth + edgePadding) / window.innerWidth;
 	const maxX = 1 - minX;
-	const minY = (halfHeight + edgePadding) / window.innerHeight;
+	const minY = (halfHeight + edgePadding) / gameViewportHeight;
 	const maxY = 1 - minY;
 	const x = clamp(position.x, minX, maxX);
 	const y = clamp(position.y, minY, maxY);
 
 	element.style.left = `${x * 100}%`;
-	element.style.top = `${y * 100}%`;
+	element.style.top = `${y * gameViewportHeight}px`;
 }
 
 function cloneControlLayout(layout) {
@@ -840,6 +843,10 @@ function cloneControlLayout(layout) {
 
 function clamp(value, min, max) {
 	return Math.min(Math.max(value, min), max);
+}
+
+function getGameViewportHeight() {
+	return Math.max(1, window.innerHeight - adArea.offsetHeight);
 }
 
 // ===== 输入处理 =====
@@ -1862,7 +1869,7 @@ function hasCommandModifier(event) {
 // ===== 渲染尺寸与主循环 =====
 function resizeRenderer() {
 	const width = window.innerWidth;
-	const height = window.innerHeight;
+	const height = getGameViewportHeight();
 	const aspect = width / height;
 	let halfHeight = cameraHeight / 2;
 	let halfWidth = halfHeight * aspect;

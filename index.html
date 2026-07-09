@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
 		<title>3D Block</title>
 		<link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg?v=2" />
-		<link rel="stylesheet" href="./src/style.css?v=9" />
+		<link rel="stylesheet" href="./src/style.css?v=11" />
 	</head>
 	<body>
 		<canvas id="game-canvas" aria-label="3D Block game"></canvas>
@@ -71,7 +71,6 @@
 					<div class="saved-game-list" id="saved-game-list"></div>
 				</section>
 			</div>
-			<aside class="ad-slot" id="ad-slot" aria-label="广告位"></aside>
 			<a
 				class="support-button"
 				id="support-button"
@@ -83,6 +82,9 @@
 				支持我们
 			</a>
 		</main>
+		<aside class="ad-area" id="ad-area" aria-label="广告位">
+			<div class="ad-slot" id="ad-slot"></div>
+		</aside>
 
 		<div class="modal-backdrop" id="pause-modal" hidden>
 			<section class="pause-modal" role="dialog" aria-modal="true" aria-labelledby="pause-title">
@@ -130,6 +132,6 @@
 			</section>
 		</div>
 
-		<script type="module" src="./src/main.js?v=10"></script>
+		<script type="module" src="./src/main.js?v=11"></script>
 	</body>
 </html>
