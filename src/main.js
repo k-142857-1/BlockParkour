@@ -64,8 +64,7 @@ const translations = {
 		moveLeft: "左移",
 		moveRight: "右移",
 		jump: "跳跃",
-		switchTopView: "切换俯视",
-		switchSideView: "切换侧视",
+		switchTopView: "切换视角",
 		returnToCheckpoint: "回到存档点",
 		pressKey: "按下新键",
 		controlLayout: "按键摆放",
@@ -107,8 +106,7 @@ const translations = {
 		moveLeft: "Move Left",
 		moveRight: "Move Right",
 		jump: "Jump",
-		switchTopView: "Top View",
-		switchSideView: "Side View",
+		switchTopView: "Switch View",
 		returnToCheckpoint: "Checkpoint",
 		pressKey: "Press key",
 		controlLayout: "Control Layout",
@@ -156,7 +154,7 @@ const settings = {
 		moveRight: "D",
 		jump: "Space",
 		switchTopView: "Q",
-		switchSideView: "E",
+		switchSideView: "Q",
 		returnToCheckpoint: "R",
 	},
 	controlLayout: cloneControlLayout(defaultControlLayout),
@@ -1004,13 +1002,8 @@ function handleKeyDown(event) {
 		event.preventDefault();
 	}
 
-	if (!event.repeat && key === settings.keybinds.switchTopView) {
-		setViewMode(viewModes.TOP);
-		return;
-	}
-
-	if (!event.repeat && key === settings.keybinds.switchSideView) {
-		setViewMode(viewModes.SIDE);
+	if (!event.repeat && isViewSwitchKey(key)) {
+		toggleViewMode();
 		return;
 	}
 
@@ -1059,6 +1052,10 @@ function setViewMode(nextMode) {
 
 function getRequiredGemForViewSwitch(nextMode) {
 	return nextMode === viewModes.TOP ? gemTypes.SIDE_TO_TOP : gemTypes.TOP_TO_SIDE;
+}
+
+function toggleViewMode() {
+	setViewMode(viewMode === viewModes.TOP ? viewModes.SIDE : viewModes.TOP);
 }
 
 function consumeGem(type) {
@@ -1533,6 +1530,10 @@ function isGameplayKey(key) {
 	return Object.values(settings.keybinds).includes(key);
 }
 
+function isViewSwitchKey(key) {
+	return key === settings.keybinds.switchTopView || key === settings.keybinds.switchSideView;
+}
+
 function moveToward(current, target, maxDelta) {
 	if (Math.abs(target - current) <= maxDelta) {
 		return target;
@@ -1647,14 +1648,17 @@ function handleKeybindInput(event) {
 	const action = keybindListeningAction;
 	const key = formatKey(event);
 	const previousKey = settings.keybinds[action];
+	const actionsToUpdate = isViewSwitchAction(action) ? ["switchTopView", "switchSideView"] : [action];
 
 	Object.keys(settings.keybinds).forEach((otherAction) => {
-		if (otherAction !== action && settings.keybinds[otherAction] === key) {
+		if (!actionsToUpdate.includes(otherAction) && settings.keybinds[otherAction] === key) {
 			settings.keybinds[otherAction] = previousKey;
 		}
 	});
 
-	settings.keybinds[action] = key;
+	actionsToUpdate.forEach((targetAction) => {
+		settings.keybinds[targetAction] = key;
+	});
 	keybindListeningAction = null;
 	saveSettings();
 	updateKeybindButtons();
@@ -1692,6 +1696,10 @@ function formatKeyLabel(key) {
 	};
 
 	return labels[settings.language][key] || key;
+}
+
+function isViewSwitchAction(action) {
+	return action === "switchTopView" || action === "switchSideView";
 }
 
 // ===== 进度存档 =====
@@ -2043,6 +2051,7 @@ function loadSettings() {
 			settings.keybinds[action] = savedSettings.keybinds[action];
 		}
 	});
+	syncViewSwitchKey();
 
 	settings.controlLayout = {
 		joystick: normalizeControlPosition(savedSettings.controlLayout?.joystick, defaultControlLayout.joystick),
@@ -2053,6 +2062,13 @@ function loadSettings() {
 
 function saveSettings() {
 	localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
+}
+
+function syncViewSwitchKey() {
+	const switchKey = settings.keybinds.switchTopView || "Q";
+
+	settings.keybinds.switchTopView = switchKey;
+	settings.keybinds.switchSideView = switchKey;
 }
 
 function normalizeControlPosition(position, fallback) {
