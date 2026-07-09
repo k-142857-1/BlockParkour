@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
 		<title>3D Block</title>
 		<link rel="icon" type="image/svg+xml" sizes="any" href="./favicon.svg?v=2" />
-		<link rel="stylesheet" href="./src/style.css?v=13" />
+		<link rel="stylesheet" href="./src/style.css?v=14" />
 	</head>
 	<body>
 		<canvas id="game-canvas" aria-label="3D Block game"></canvas>
@@ -139,7 +139,43 @@
 					</select>
 				</div>
 
-				<div class="control-layout-settings">
+				<div class="keybinds" id="keybind-settings">
+					<h3 data-i18n="keybinds">键位设置</h3>
+					<div class="keybind-row">
+						<span data-i18n="moveForward">前进</span>
+						<button class="keybind-button" type="button" data-keybind="moveForward"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="moveBackward">后退</span>
+						<button class="keybind-button" type="button" data-keybind="moveBackward"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="moveLeft">左移</span>
+						<button class="keybind-button" type="button" data-keybind="moveLeft"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="moveRight">右移</span>
+						<button class="keybind-button" type="button" data-keybind="moveRight"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="jump">跳跃</span>
+						<button class="keybind-button" type="button" data-keybind="jump"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="switchTopView">切换俯视</span>
+						<button class="keybind-button" type="button" data-keybind="switchTopView"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="switchSideView">切换侧视</span>
+						<button class="keybind-button" type="button" data-keybind="switchSideView"></button>
+					</div>
+					<div class="keybind-row">
+						<span data-i18n="returnToCheckpoint">回到存档点</span>
+						<button class="keybind-button" type="button" data-keybind="returnToCheckpoint"></button>
+					</div>
+				</div>
+
+				<div class="control-layout-settings" id="control-layout-settings">
 					<h3 data-i18n="controlLayout">按键摆放</h3>
 					<p data-i18n="controlLayoutHint">进入调整模式后，可拖动摇杆、跳跃键和宝石栏。</p>
 					<button
@@ -154,6 +190,6 @@
 			</section>
 		</div>
 
-		<script type="module" src="./src/main.js?v=13"></script>
+		<script type="module" src="./src/main.js?v=14"></script>
 	</body>
 </html>

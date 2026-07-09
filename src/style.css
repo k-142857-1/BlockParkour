@@ -566,6 +566,7 @@ h1 {
 }
 
 .icon-button {
+	font-size: 25px;
 	width: 44px;
 	padding: 0;
 	border-color: var(--panel-border);

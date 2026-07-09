@@ -35,6 +35,9 @@ const joystickControl = document.querySelector("#joystick-control");
 const joystickBase = document.querySelector("#joystick-base");
 const joystickKnob = document.querySelector("#joystick-knob");
 const jumpButton = document.querySelector("#jump-button");
+const keybindSettings = document.querySelector("#keybind-settings");
+const keybindButtons = document.querySelectorAll("[data-keybind]");
+const controlLayoutSettings = document.querySelector("#control-layout-settings");
 const arrangeControlsButton = document.querySelector("#arrange-controls-button");
 const controlLayoutToolbar = document.querySelector("#control-layout-toolbar");
 const resetControlsButton = document.querySelector("#reset-controls-button");
@@ -55,6 +58,16 @@ const translations = {
 		settings: "设置",
 		settingsTitle: "设置",
 		language: "语言",
+		keybinds: "键位设置",
+		moveForward: "前进",
+		moveBackward: "后退",
+		moveLeft: "左移",
+		moveRight: "右移",
+		jump: "跳跃",
+		switchTopView: "切换俯视",
+		switchSideView: "切换侧视",
+		returnToCheckpoint: "回到存档点",
+		pressKey: "按下新键",
 		controlLayout: "按键摆放",
 		controlLayoutHint: "进入调整模式后，可拖动摇杆、跳跃键和宝石栏。",
 		arrangeControls: "调整按键摆放",
@@ -88,6 +101,16 @@ const translations = {
 		settings: "Settings",
 		settingsTitle: "Settings",
 		language: "Language",
+		keybinds: "Keybinds",
+		moveForward: "Move Forward",
+		moveBackward: "Move Backward",
+		moveLeft: "Move Left",
+		moveRight: "Move Right",
+		jump: "Jump",
+		switchTopView: "Top View",
+		switchSideView: "Side View",
+		returnToCheckpoint: "Checkpoint",
+		pressKey: "Press key",
 		controlLayout: "Control Layout",
 		controlLayoutHint: "Drag the joystick, jump button, and gem bar in layout mode.",
 		arrangeControls: "Arrange Controls",
@@ -143,6 +166,7 @@ const settings = {
 const pressedKeys = new Set();
 const touchInput = { x: 0, y: 0, jump: false };
 const touchMediaQuery = window.matchMedia("(pointer: coarse)");
+const finePointerMediaQuery = window.matchMedia("(pointer: fine)");
 const levelBlocks = [];
 const levelGems = [];
 const levelCheckpoints = [];
@@ -205,6 +229,7 @@ let joystickPointerId = null;
 let jumpPointerId = null;
 let layoutEditing = false;
 let layoutDrag = null;
+let keybindListeningAction = null;
 let selectedSupportAmount = "0.1";
 let lastTime = performance.now();
 let viewHintTimer = null;
@@ -344,6 +369,9 @@ function bindUi() {
 		saveSettings();
 		applyLanguage();
 	});
+	keybindButtons.forEach((button) => {
+		button.addEventListener("click", () => startKeybindListening(button.dataset.keybind));
+	});
 
 	sideToTopGemButton.addEventListener("click", () => {
 		if (!layoutEditing && gameStarted && !gamePaused) {
@@ -388,6 +416,7 @@ function bindUi() {
 		applyControlLayout();
 	});
 	touchMediaQuery.addEventListener("change", updateTouchCapability);
+	finePointerMediaQuery.addEventListener("change", updateSettingsPanels);
 	window.addEventListener("beforeunload", () => {
 		if (gameStarted) {
 			saveProgress({ showHint: false });
@@ -695,12 +724,14 @@ function initializeTouchControls() {
 	document.body.classList.toggle("touch-enabled", touchEnabled);
 	applyControlLayout();
 	updateTouchControlsVisibility();
+	updateSettingsPanels();
 }
 
 function updateTouchCapability() {
 	touchEnabled = touchMediaQuery.matches || navigator.maxTouchPoints > 0;
 	document.body.classList.toggle("touch-enabled", touchEnabled);
 	updateTouchControlsVisibility();
+	updateSettingsPanels();
 	applyControlLayout();
 }
 
@@ -930,6 +961,11 @@ function getGameViewportHeight() {
 function handleKeyDown(event) {
 	if (event.key === "Escape") {
 		event.preventDefault();
+		if (keybindListeningAction) {
+			cancelKeybindListening();
+			return;
+		}
+
 		if (layoutEditing) {
 			finishControlLayoutEditing();
 			return;
@@ -950,6 +986,7 @@ function handleKeyDown(event) {
 	}
 
 	if (!settingsModal.hidden) {
+		handleKeybindInput(event);
 		return;
 	}
 
@@ -1559,13 +1596,102 @@ function quitToMainMenu() {
 function openSettings() {
 	pressedKeys.clear();
 	resetTouchInput();
+	updateSettingsPanels();
+	updateKeybindButtons();
 	settingsModal.hidden = false;
 	languageSelect.focus();
 }
 
 function closeSettings() {
 	pressedKeys.clear();
+	cancelKeybindListening();
 	settingsModal.hidden = true;
+}
+
+function updateSettingsPanels() {
+	const showKeybinds = finePointerMediaQuery.matches || !touchEnabled;
+
+	keybindSettings.hidden = !showKeybinds;
+	controlLayoutSettings.hidden = showKeybinds;
+
+	if (!showKeybinds) {
+		cancelKeybindListening();
+	}
+}
+
+function startKeybindListening(action) {
+	if (!settings.keybinds[action]) {
+		return;
+	}
+
+	keybindListeningAction = action;
+	updateKeybindButtons();
+}
+
+function cancelKeybindListening() {
+	if (!keybindListeningAction) {
+		return;
+	}
+
+	keybindListeningAction = null;
+	updateKeybindButtons();
+}
+
+function handleKeybindInput(event) {
+	if (!keybindListeningAction || event.repeat || hasCommandModifier(event)) {
+		return;
+	}
+
+	event.preventDefault();
+
+	const action = keybindListeningAction;
+	const key = formatKey(event);
+	const previousKey = settings.keybinds[action];
+
+	Object.keys(settings.keybinds).forEach((otherAction) => {
+		if (otherAction !== action && settings.keybinds[otherAction] === key) {
+			settings.keybinds[otherAction] = previousKey;
+		}
+	});
+
+	settings.keybinds[action] = key;
+	keybindListeningAction = null;
+	saveSettings();
+	updateKeybindButtons();
+}
+
+function updateKeybindButtons() {
+	keybindButtons.forEach((button) => {
+		const action = button.dataset.keybind;
+		const isListening = keybindListeningAction === action;
+
+		button.textContent = isListening
+			? translations[settings.language].pressKey
+			: formatKeyLabel(settings.keybinds[action]);
+		button.classList.toggle("is-listening", isListening);
+		button.setAttribute("aria-pressed", String(isListening));
+	});
+}
+
+function formatKeyLabel(key) {
+	const labels = {
+		zh: {
+			Space: "空格",
+			ArrowUp: "↑",
+			ArrowDown: "↓",
+			ArrowLeft: "←",
+			ArrowRight: "→",
+		},
+		en: {
+			Space: "Space",
+			ArrowUp: "↑",
+			ArrowDown: "↓",
+			ArrowLeft: "←",
+			ArrowRight: "→",
+		},
+	};
+
+	return labels[settings.language][key] || key;
 }
 
 // ===== 进度存档 =====
@@ -1890,6 +2016,8 @@ function applyLanguage() {
 	joystickBase.setAttribute("aria-label", settings.language === "zh" ? "移动摇杆" : "Movement joystick");
 	jumpButton.setAttribute("aria-label", settings.language === "zh" ? "跳跃" : "Jump");
 	closeSupportButton.setAttribute("aria-label", settings.language === "zh" ? "关闭" : "Close");
+	updateSettingsPanels();
+	updateKeybindButtons();
 	updateSupportPayment();
 }
 
