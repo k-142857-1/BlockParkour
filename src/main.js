@@ -6,7 +6,6 @@ const adArea = document.querySelector("#ad-area");
 const startScreen = document.querySelector("#start-screen");
 const startButton = document.querySelector("#start-button");
 const settingsButton = document.querySelector("#settings-button");
-const supportButton = document.querySelector("#support-button");
 const gameSettingsButton = document.querySelector("#game-settings-button");
 const gamePauseButton = document.querySelector("#game-pause-button");
 const pauseModal = document.querySelector("#pause-modal");
@@ -14,11 +13,6 @@ const resumeButton = document.querySelector("#resume-button");
 const quitButton = document.querySelector("#quit-button");
 const settingsModal = document.querySelector("#settings-modal");
 const closeSettingsButton = document.querySelector("#close-settings-button");
-const supportModal = document.querySelector("#support-modal");
-const closeSupportButton = document.querySelector("#close-support-button");
-const supportAmountButtons = document.querySelectorAll(".support-amount");
-const supportPayButton = document.querySelector("#support-pay-button");
-const supportPaymentHint = document.querySelector("#support-payment-hint");
 const languageSelect = document.querySelector("#language-select");
 const viewToast = document.querySelector("#view-toast");
 const saveToast = document.querySelector("#save-toast");
@@ -44,11 +38,6 @@ const resetControlsButton = document.querySelector("#reset-controls-button");
 const saveControlsButton = document.querySelector("#save-controls-button");
 const settingsStorageKey = "3d-block-settings";
 const progressStorageKey = "3d-block-progress-v1";
-// 填入收款平台生成的金额专属链接；不要在前端存放商户密钥。
-const supportPaymentLinks = {
-	"0.1": "",
-	"0.5": "",
-};
 
 // 界面文案集中放在这里，后面继续加语言时比较好维护。
 const translations = {
@@ -74,10 +63,6 @@ const translations = {
 		resetLayout: "恢复默认",
 		saveLayout: "完成",
 		supportUs: "支持我们",
-		supportTitle: "支持我们",
-		supportDescription: "选择一个金额支持我们。",
-		payNow: "支付",
-		paymentUnavailable: "暂时无法支付，请稍后再试。",
 		pauseTitle: "暂停",
 		resumeGame: "继续",
 		quitToMenu: "退出到主界面",
@@ -116,10 +101,6 @@ const translations = {
 		resetLayout: "Reset",
 		saveLayout: "Done",
 		supportUs: "Support Us",
-		supportTitle: "Support Us",
-		supportDescription: "Choose an amount to support us.",
-		payNow: "Pay",
-		paymentUnavailable: "Payment is temporarily unavailable. Please try again later.",
 		pauseTitle: "Paused",
 		resumeGame: "Resume",
 		quitToMenu: "Quit to Menu",
@@ -228,7 +209,6 @@ let jumpPointerId = null;
 let layoutEditing = false;
 let layoutDrag = null;
 let keybindListeningAction = null;
-let selectedSupportAmount = "0.1";
 let lastTime = performance.now();
 let viewHintTimer = null;
 let saveHintTimer = null;
@@ -340,27 +320,16 @@ function bindUi() {
 	startButton.addEventListener("click", handleStartButtonClick);
 	newGameButton.addEventListener("click", startNewGame);
 	settingsButton.addEventListener("click", openSettings);
-	supportButton.addEventListener("click", openSupportModal);
 	gameSettingsButton.addEventListener("click", openSettings);
 	gamePauseButton.addEventListener("click", pauseGame);
 	resumeButton.addEventListener("click", resumeGame);
 	quitButton.addEventListener("click", quitToMainMenu);
 	closeSettingsButton.addEventListener("click", closeSettings);
-	closeSupportButton.addEventListener("click", closeSupportModal);
 	settingsModal.addEventListener("click", (event) => {
 		if (event.target === settingsModal) {
 			closeSettings();
 		}
 	});
-	supportModal.addEventListener("click", (event) => {
-		if (event.target === supportModal) {
-			closeSupportModal();
-		}
-	});
-	supportAmountButtons.forEach((button) => {
-		button.addEventListener("click", () => selectSupportAmount(button.dataset.amount));
-	});
-	supportPayButton.addEventListener("click", openSupportPayment);
 
 	languageSelect.addEventListener("change", () => {
 		settings.language = languageSelect.value;
@@ -639,52 +608,6 @@ function beginGame() {
 function closeSavePicker() {
 	savePicker.hidden = true;
 	savedGameList.replaceChildren();
-}
-
-function openSupportModal() {
-	supportPaymentHint.textContent = "";
-	supportModal.hidden = false;
-	updateSupportPayment();
-	supportAmountButtons[0].focus();
-}
-
-function closeSupportModal() {
-	supportModal.hidden = true;
-	supportPaymentHint.textContent = "";
-	supportButton.focus();
-}
-
-function selectSupportAmount(amount) {
-	if (!(amount in supportPaymentLinks)) {
-		return;
-	}
-
-	selectedSupportAmount = amount;
-	supportPaymentHint.textContent = "";
-	updateSupportPayment();
-}
-
-function updateSupportPayment() {
-	supportAmountButtons.forEach((button) => {
-		const isSelected = button.dataset.amount === selectedSupportAmount;
-
-		button.classList.toggle("is-selected", isSelected);
-		button.setAttribute("aria-pressed", String(isSelected));
-	});
-	supportPayButton.textContent = `${translations[settings.language].payNow} ¥${Number(
-		selectedSupportAmount,
-	).toFixed(2)}`;
-}
-
-function openSupportPayment() {
-	const paymentUrl = supportPaymentLinks[selectedSupportAmount];
-
-	if (!paymentUrl) {
-		supportPaymentHint.textContent = translations[settings.language].paymentUnavailable;
-		return;
-	}
-
-	window.open(paymentUrl, "_blank", "noopener,noreferrer");
 }
 
 function resetPlayer() {
@@ -966,11 +889,6 @@ function handleKeyDown(event) {
 
 		if (layoutEditing) {
 			finishControlLayoutEditing();
-			return;
-		}
-
-		if (!supportModal.hidden) {
-			closeSupportModal();
 			return;
 		}
 
@@ -2023,10 +1941,8 @@ function applyLanguage() {
 	);
 	joystickBase.setAttribute("aria-label", settings.language === "zh" ? "移动摇杆" : "Movement joystick");
 	jumpButton.setAttribute("aria-label", settings.language === "zh" ? "跳跃" : "Jump");
-	closeSupportButton.setAttribute("aria-label", settings.language === "zh" ? "关闭" : "Close");
 	updateSettingsPanels();
 	updateKeybindButtons();
-	updateSupportPayment();
 }
 
 function loadSettings() {
