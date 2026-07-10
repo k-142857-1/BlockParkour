@@ -71,14 +71,7 @@
 					<div class="saved-game-list" id="saved-game-list"></div>
 				</section>
 			</div>
-			<button
-				class="support-button"
-				id="support-button"
-				type="button"
-				data-i18n="supportUs"
-			>
-				支持我们
-			</button>
+			<a class="support-button" id="support-button" href="https://ifdian.net/a/f43t4" data-i18n="supportUs">支持我们</a>
 		</main>
 		<aside class="ad-area" id="ad-area" aria-label="广告位">
 			<div class="ad-slot" id="ad-slot"></div>
@@ -95,30 +88,6 @@
 						退出到主界面
 					</button>
 				</div>
-			</section>
-		</div>
-
-		<div class="modal-backdrop" id="support-modal" hidden>
-			<section class="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-title">
-				<div class="modal-header">
-					<h2 id="support-title" data-i18n="supportTitle">支持我们</h2>
-					<button class="icon-button" id="close-support-button" type="button" aria-label="关闭">
-						×
-					</button>
-				</div>
-				<p class="support-description" data-i18n="supportDescription">选择一个金额支持我们。</p>
-				<div class="support-amounts" role="group" aria-label="支持金额">
-					<button class="support-amount is-selected" type="button" data-amount="0.1" aria-pressed="true">
-						&#165;0.10
-					</button>
-					<button class="support-amount" type="button" data-amount="0.5" aria-pressed="false">
-						&#165;0.50
-					</button>
-				</div>
-				<button class="primary-button support-pay-button" id="support-pay-button" type="button">
-					支付 &#165;0.10
-				</button>
-				<p class="support-payment-hint" id="support-payment-hint" role="status" aria-live="polite"></p>
 			</section>
 		</div>
 
@@ -186,6 +155,6 @@
 			</section>
 		</div>
 
-		<script type="module" src="./src/main.js?v=15"></script>
+		<script type="module" src="./src/main.js?v=16"></script>
 	</body>
 </html>
