@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Top to side gem">
-	<path d="M64 8l44 28-14 68-30 16-30-16-14-68z" fill="#ff7ab6" />
-	<path d="M64 8l44 28H20z" fill="#ffd1e5" />
-	<path d="M20 36h88L64 120z" fill="#d7358d" />
-	<path d="M64 8v112M20 36l44 84 44-84" fill="none" stroke="#fff0f7" stroke-width="5" stroke-linejoin="round" opacity=".75" />
-	<path d="M47 50l34 40M81 50L47 90" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" />
+	<path d="M64 6l46 30-15 69-31 17-31-17-15-69z" fill="#bd246f"/>
+	<path d="M64 6l46 30H18z" fill="#ffd6e8"/>
+	<path d="M18 36h92L64 122z" fill="#e34f94"/>
+	<path d="M64 6L42 36l22 86 22-86z" fill="#ff8fbd" opacity=".68"/>
+	<path d="M18 36h92M64 6v116M18 36l46 86 46-86" fill="none" stroke="#fff1f7" stroke-width="4" opacity=".82"/>
+	<path d="M47 50l34 40M81 50L47 90" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
 </svg>
