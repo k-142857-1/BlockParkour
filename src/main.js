@@ -1,4 +1,4 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js";
+﻿import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js";
 
 // ===== DOM 与菜单设置 =====
 const canvas = document.querySelector("#game-canvas");
@@ -149,6 +149,11 @@ const finePointerMediaQuery = window.matchMedia("(pointer: fine)");
 const levelBlocks = [];
 const levelGems = [];
 const levelCheckpoints = [];
+const levelHazards = [];
+const levelLadders = [];
+const levelBounceZones = [];
+const levelSwitches = [];
+const levelDoors = [];
 const viewModes = {
 	SIDE: "side",
 	TOP: "top",
@@ -281,6 +286,12 @@ scene.add(player.mesh);
 
 const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughness: 0.66 });
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });
+const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0xff4545, roughness: 0.55 });
+const ladderMaterial = new THREE.MeshStandardMaterial({ color: 0xffcf24, roughness: 0.5 });
+const bounceMaterial = new THREE.MeshStandardMaterial({ color: 0x32d66f, transparent: true, opacity: 0.72, roughness: 0.45 });
+const switchMaterial = new THREE.MeshStandardMaterial({ color: 0xb455c8, roughness: 0.48 });
+const switchPressedMaterial = new THREE.MeshStandardMaterial({ color: 0x7f3d91, roughness: 0.55 });
+const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x9937b8, transparent: true, opacity: 0.86, roughness: 0.5 });
 const backLineMaterial = new THREE.LineBasicMaterial({ color: 0x243346, transparent: true, opacity: 0.5 });
 const shadowPlane = new THREE.Mesh(
 	new THREE.PlaneGeometry(shadowPlaneBaseSize.width, shadowPlaneBaseSize.height),
@@ -394,7 +405,7 @@ function bindUi() {
 // ===== 地图加载与构建 =====
 async function loadMap() {
 	try {
-		const response = await fetch("./src/map.json", { cache: "no-store" });
+		const response = await fetch("./src/maps/map.json", { cache: "no-store" });
 		if (!response.ok) {
 			throw new Error(`Map request failed: ${response.status}`);
 		}
@@ -415,9 +426,19 @@ function buildMap(mapData) {
 	levelBlocks.forEach((block) => scene.remove(block.mesh));
 	levelGems.forEach((gem) => scene.remove(gem.mesh));
 	levelCheckpoints.forEach((checkpoint) => scene.remove(checkpoint.mesh));
+	levelHazards.forEach((hazard) => scene.remove(hazard.mesh));
+	levelLadders.forEach((ladder) => scene.remove(ladder.mesh));
+	levelBounceZones.forEach((zone) => scene.remove(zone.mesh));
+	levelSwitches.forEach((switchData) => scene.remove(switchData.mesh));
+	levelDoors.forEach((door) => scene.remove(door.mesh));
 	levelBlocks.length = 0;
 	levelGems.length = 0;
 	levelCheckpoints.length = 0;
+	levelHazards.length = 0;
+	levelLadders.length = 0;
+	levelBounceZones.length = 0;
+	levelSwitches.length = 0;
+	levelDoors.length = 0;
 
 	mapData.blocks.forEach((blockData) => {
 		const block = normalizeBlock(blockData);
@@ -434,12 +455,138 @@ function buildMap(mapData) {
 		});
 	});
 
+	buildHazards(mapData.hazards || []);
+	buildLadders(mapData.ladders || []);
+	buildBounceZones(mapData.bounceZones || []);
+	buildDoors(mapData.doors || []);
+	buildSwitches(mapData.switches || []);
 	buildGems(mapData.gems || fallbackMap.gems || []);
 	buildCheckpoints(mapData.checkpoints || fallbackMap.checkpoints || []);
 	updateShadowLayout();
 	updateViewPresentation();
 }
 
+function buildHazards(hazards) {
+	hazards.forEach((hazardData, index) => {
+		const hazard = normalizeArea(hazardData, `hazard-${index + 1}`);
+		const group = new THREE.Group();
+		const count = Math.max(2, Math.round(hazard.w / 0.7));
+		const spacing = hazard.w / count;
+
+		for (let spikeIndex = 0; spikeIndex < count; spikeIndex += 1) {
+			const spike = new THREE.Mesh(
+				new THREE.ConeGeometry(spacing * 0.42, hazard.h, 3),
+				spikeMaterial,
+			);
+			spike.position.set(
+				hazard.x - hazard.w / 2 + spacing * (spikeIndex + 0.5),
+				hazard.y,
+				hazard.z ?? 0,
+			);
+			spike.rotation.y = Math.PI / 6;
+			group.add(spike);
+		}
+
+		scene.add(group);
+		levelHazards.push({
+			...hazard,
+			viewMode: hazardData.viewMode || viewModes.SIDE,
+			damage: hazardData.damage || "death",
+			mesh: group,
+		});
+	});
+}
+
+function buildLadders(ladders) {
+	ladders.forEach((ladderData, index) => {
+		const ladder = normalizeArea(ladderData, `ladder-${index + 1}`);
+		const group = new THREE.Group();
+		const railWidth = Math.min(0.12, ladder.w / 4);
+		const leftRail = new THREE.Mesh(new THREE.BoxGeometry(railWidth, ladder.h, 0.18), ladderMaterial);
+		const rightRail = new THREE.Mesh(new THREE.BoxGeometry(railWidth, ladder.h, 0.18), ladderMaterial);
+		const rungCount = Math.max(3, Math.floor(ladder.h / 0.55));
+
+		leftRail.position.set(ladder.x - ladder.w / 2, ladder.y, ladder.z ?? 0.12);
+		rightRail.position.set(ladder.x + ladder.w / 2, ladder.y, ladder.z ?? 0.12);
+		group.add(leftRail, rightRail);
+
+		for (let rungIndex = 0; rungIndex < rungCount; rungIndex += 1) {
+			const rung = new THREE.Mesh(new THREE.BoxGeometry(ladder.w, railWidth, 0.18), ladderMaterial);
+			rung.position.set(
+				ladder.x,
+				ladder.y - ladder.h / 2 + (ladder.h / (rungCount + 1)) * (rungIndex + 1),
+				ladder.z ?? 0.12,
+			);
+			group.add(rung);
+		}
+
+		scene.add(group);
+		levelLadders.push({ ...ladder, mesh: group });
+	});
+}
+
+function buildBounceZones(zones) {
+	zones.forEach((zoneData, index) => {
+		const zone = normalizeArea(zoneData, `bounce-${index + 1}`);
+		const mesh = new THREE.Mesh(new THREE.BoxGeometry(zone.w, zone.h, zone.d), bounceMaterial);
+
+		mesh.position.set(zone.x, zone.y, zone.z ?? 0.18);
+		scene.add(mesh);
+		levelBounceZones.push({
+			...zone,
+			viewMode: zoneData.viewMode || viewModes.SIDE,
+			jumpSpeed: Number.isFinite(zoneData.jumpSpeed) ? zoneData.jumpSpeed : 18,
+			mesh,
+		});
+	});
+}
+
+function buildSwitches(switches) {
+	switches.forEach((switchData, index) => {
+		const switchArea = normalizeArea(switchData, `switch-${index + 1}`);
+		const mesh = new THREE.Mesh(new THREE.BoxGeometry(switchArea.w, switchArea.h, switchArea.d), switchMaterial);
+
+		mesh.position.set(switchArea.x, switchArea.y, switchArea.z ?? 0.45);
+		scene.add(mesh);
+		levelSwitches.push({
+			...switchArea,
+			opens: switchData.opens,
+			openDuration: Number.isFinite(switchData.openDuration) ? switchData.openDuration : 4,
+			requiresGravity: switchData.requiresGravity !== false,
+			pressed: false,
+			mesh,
+		});
+	});
+}
+
+function buildDoors(doors) {
+	doors.forEach((doorData, index) => {
+		const door = normalizeArea(doorData, `door-${index + 1}`);
+		const mesh = new THREE.Mesh(new THREE.BoxGeometry(door.w, door.h, door.d), doorMaterial);
+
+		mesh.position.set(door.x, door.y, door.z ?? 0);
+		scene.add(mesh);
+		levelDoors.push({
+			...door,
+			open: doorData.closed === false,
+			openTimer: doorData.closed === false ? Infinity : 0,
+			mesh,
+		});
+	});
+	refreshDoors();
+}
+
+function normalizeArea(areaData, fallbackId) {
+	return {
+		id: areaData.id || fallbackId,
+		x: areaData.x,
+		y: areaData.y,
+		z: areaData.z ?? 0,
+		w: areaData.w,
+		h: areaData.h,
+		d: areaData.d ?? 4,
+	};
+}
 function buildGems(gems) {
 	gems.forEach((gemData, index) => {
 		const gem = normalizeGem(gemData, index);
@@ -488,6 +635,7 @@ function buildCheckpoints(checkpoints) {
 
 function normalizeBlock(blockData) {
 	return {
+		id: blockData.id || "block",
 		x: blockData.x,
 		y: blockData.y,
 		z: blockData.z ?? 0,
@@ -534,7 +682,7 @@ function refreshCheckpointStates() {
 }
 
 function getBlockMaterial(block) {
-	return block.y <= 0 ? groundMaterial : blockMaterial;
+	return block.material === "ground" || block.y <= 0 ? groundMaterial : blockMaterial;
 }
 
 function getGemTexture(type) {
@@ -994,6 +1142,7 @@ function updateGame(deltaTime) {
 		updateSideView(deltaTime);
 	}
 
+	updateMapInteractions(deltaTime);
 	collectGems();
 	activateCheckpoints();
 	centerCameraOnPlayer();
@@ -1005,6 +1154,7 @@ function updateSideView(deltaTime) {
 	const jumpHeld = isActionPressed("jump");
 	const keyboardInput = Number(rightPressed) - Number(leftPressed);
 	const horizontalInput = Math.abs(touchInput.x) > 0.12 ? touchInput.x : keyboardInput;
+	const ladderInput = getLadderInput(jumpHeld);
 
 	if (player.grounded) {
 		player.coyoteTimer = physics.coyoteTime;
@@ -1035,7 +1185,16 @@ function updateSideView(deltaTime) {
 		}
 	}
 
-	player.velocity.y = Math.max(player.velocity.y + physics.gravity * deltaTime, physics.maxFallSpeed);
+	if (getActiveLadder() && ladderInput !== 0) {
+		player.velocity.y = ladderInput * physics.moveSpeed;
+		player.grounded = false;
+		player.coyoteTimer = physics.coyoteTime;
+		player.jumpBufferTimer = 0;
+	} else if (getActiveLadder() && !jumpHeld) {
+		player.velocity.y = moveToward(player.velocity.y, 0, physics.groundDeceleration * deltaTime);
+	} else {
+		player.velocity.y = Math.max(player.velocity.y + physics.gravity * deltaTime, physics.maxFallSpeed);
+	}
 	moveAndCollide(deltaTime);
 
 	if (player.mesh.position.y < -8) {
@@ -1165,10 +1324,12 @@ function updateShadowMode(isEnabled) {
 	shadowPlane.visible = isEnabled;
 	shadowPlane.receiveShadow = isEnabled;
 
-	levelBlocks.forEach((block) => {
-		block.mesh.castShadow = isEnabled;
-		block.mesh.receiveShadow = isEnabled;
-	});
+	levelBlocks.forEach((block) => setObjectShadow(block.mesh, isEnabled));
+	levelHazards.forEach((hazard) => setObjectShadow(hazard.mesh, isEnabled));
+	levelLadders.forEach((ladder) => setObjectShadow(ladder.mesh, isEnabled));
+	levelBounceZones.forEach((zone) => setObjectShadow(zone.mesh, isEnabled));
+	levelSwitches.forEach((switchData) => setObjectShadow(switchData.mesh, isEnabled));
+	levelDoors.forEach((door) => setObjectShadow(door.mesh, isEnabled));
 }
 
 function showViewHint(nextMode, message = "") {
@@ -1195,6 +1356,159 @@ function hideViewHint() {
 	viewToast.hidden = true;
 }
 
+function updateMapInteractions(deltaTime) {
+	updateSwitches();
+	updateDoors(deltaTime);
+	updateBounceZones();
+	updateHazards();
+}
+
+function updateHazards() {
+	levelHazards.forEach((hazard) => {
+		if (hazard.viewMode !== viewMode || !isAreaOverlapping(hazard)) {
+			return;
+		}
+
+		resetPlayer();
+	});
+}
+
+function updateBounceZones() {
+	if (viewMode !== viewModes.SIDE) {
+		return;
+	}
+
+	levelBounceZones.forEach((zone) => {
+		if (zone.viewMode !== viewMode || !isAreaOverlapping(zone)) {
+			return;
+		}
+
+		if (player.velocity.y <= 0 && player.mesh.position.y >= zone.y) {
+			player.velocity.y = zone.jumpSpeed;
+			player.grounded = false;
+			player.coyoteTimer = 0;
+			player.jumpBufferTimer = 0;
+		}
+	});
+}
+
+function updateSwitches() {
+	let changed = false;
+
+	levelSwitches.forEach((switchData) => {
+		const canPress = !switchData.requiresGravity || viewMode === viewModes.SIDE;
+		const isPressed = canPress && isAreaOverlapping(switchData);
+
+		if (switchData.pressed !== isPressed) {
+			switchData.pressed = isPressed;
+			switchData.mesh.material = isPressed ? switchPressedMaterial : switchMaterial;
+			switchData.mesh.scale.y = isPressed ? 0.45 : 1;
+			changed = true;
+		}
+
+		if (isPressed) {
+			openDoor(switchData.opens, switchData.openDuration);
+		}
+	});
+
+	if (changed) {
+		refreshDoors();
+		saveProgress({ showHint: false });
+	}
+}
+
+function openDoor(doorId, duration) {
+	levelDoors.forEach((door) => {
+		if (door.id === doorId) {
+			door.open = true;
+			door.openTimer = duration;
+		}
+	});
+}
+
+function updateDoors(deltaTime) {
+	let changed = false;
+
+	levelDoors.forEach((door) => {
+		if (!door.open || !Number.isFinite(door.openTimer)) {
+			return;
+		}
+
+		door.openTimer = Math.max(door.openTimer - deltaTime, 0);
+		if (door.openTimer > 0) {
+			return;
+		}
+
+		door.open = false;
+		changed = true;
+	});
+
+	if (changed) {
+		refreshDoors();
+	}
+}
+
+function refreshDoors() {
+	levelDoors.forEach((door) => {
+		door.mesh.visible = !door.open;
+		door.mesh.material.opacity = door.open ? 0.18 : 0.86;
+	});
+}
+
+function getActiveLadder() {
+	if (viewMode !== viewModes.SIDE) {
+		return null;
+	}
+
+	return levelLadders.find((ladder) => isAreaOverlapping(ladder)) || null;
+}
+
+function getLadderInput(jumpHeld) {
+	if (!getActiveLadder()) {
+		return 0;
+	}
+
+	const upPressed = jumpHeld || isActionPressed("moveForward");
+	const downPressed = isActionPressed("moveBackward");
+
+	return Number(upPressed) - Number(downPressed);
+}
+
+function getSolidBlocks() {
+	return [
+		...levelBlocks,
+		...levelDoors.filter((door) => !door.open),
+	];
+}
+
+function setObjectShadow(object, isEnabled) {
+	object.traverse((child) => {
+		if (!child.isMesh) {
+			return;
+		}
+
+		child.castShadow = isEnabled;
+		child.receiveShadow = isEnabled;
+	});
+}
+
+function applyWorldSave(worldSave) {
+	const doorTimers = Array.isArray(worldSave?.doorTimers) ? worldSave.doorTimers : [];
+	const openedDoors = new Set(Array.isArray(worldSave?.openedDoors) ? worldSave.openedDoors : []);
+	const pressedSwitches = new Set(Array.isArray(worldSave?.pressedSwitches) ? worldSave.pressedSwitches : []);
+
+	levelDoors.forEach((door) => {
+		const timer = doorTimers.find((entry) => entry?.id === door.id);
+		door.openTimer = Math.max(0, Number(timer?.remaining) || 0);
+		door.open = door.openTimer > 0 || openedDoors.has(door.id);
+	});
+	levelSwitches.forEach((switchData) => {
+		switchData.pressed = pressedSwitches.has(switchData.id);
+		switchData.mesh.material = switchData.pressed ? switchPressedMaterial : switchMaterial;
+		switchData.mesh.scale.y = switchData.pressed ? 0.45 : 1;
+	});
+	refreshDoors();
+}
 // ===== 简单 AABB 碰撞 =====
 function moveAndCollide(deltaTime) {
 	player.mesh.position.x += player.velocity.x * deltaTime;
@@ -1206,7 +1520,7 @@ function moveAndCollide(deltaTime) {
 }
 
 function resolveCollisions(axis) {
-	levelBlocks.forEach((block) => {
+	getSolidBlocks().forEach((block) => {
 		if (!isOverlapping(player.mesh.position, block)) {
 			return;
 		}
@@ -1239,7 +1553,7 @@ function resolveCollisions(axis) {
 }
 
 function resolveTopCollisions(axis) {
-	levelBlocks.forEach((block) => {
+	getSolidBlocks().forEach((block) => {
 		if (!isTopBlockingOverlap(player.mesh.position, block)) {
 			return;
 		}
@@ -1283,6 +1597,17 @@ function isOverlapping(position, block) {
 
 function isTopBlockingOverlap(position, block) {
 	return isOverlapping(position, block);
+}
+
+function isAreaOverlapping(area) {
+	return isOverlapping(player.mesh.position, {
+		x: area.x,
+		y: area.y,
+		z: area.z ?? 0,
+		w: area.w,
+		h: area.h,
+		d: area.d ?? 4,
+	});
 }
 
 function getPlayerBounds(position) {
@@ -1739,6 +2064,12 @@ function buildProgressSave() {
 			activatedIds: [...activatedCheckpointIds],
 		},
 		checkpoint: lastCheckpoint,
+		world: {
+			doorTimers: levelDoors
+				.filter((door) => door.open && door.openTimer > 0)
+				.map((door) => ({ id: door.id, remaining: door.openTimer })),
+			pressedSwitches: levelSwitches.filter((switchData) => switchData.pressed).map((switchData) => switchData.id),
+		},
 	};
 }
 
@@ -1804,6 +2135,7 @@ function applyProgressSave(save) {
 	player.coyoteTimer = 0;
 	refreshGemVisibility();
 	refreshCheckpointStates();
+	applyWorldSave(save.world);
 	updateGemHud();
 	updateViewPresentation();
 	centerCameraOnPlayer();
