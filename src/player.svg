@@ -1,9 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Player">
-	<rect width="128" height="128" fill="#ffcf56" />
-	<path d="M28 34h72v56H28z" fill="#ffe38a" />
-	<path d="M28 90h72l-14 18H42z" fill="#e19a21" />
-	<path d="M28 34l14-14h44l14 14z" fill="#fff0b0" />
-	<circle cx="49" cy="60" r="7" fill="#141821" />
-	<circle cx="79" cy="60" r="7" fill="#141821" />
-	<path d="M48 80c9 7 23 7 32 0" fill="none" stroke="#141821" stroke-width="7" stroke-linecap="round" />
+	<rect width="128" height="128" fill="#ffd45e"/>
+	<path d="M0 0h128L108 18H20z" fill="#fff0a7"/>
+	<path d="M0 128h128l-20-18H20z" fill="#d99718"/>
+	<rect x="18" y="22" width="92" height="82" fill="#ffe47f"/>
+	<path d="M18 22h92L96 35H32z" fill="#fff4ba"/>
+	<circle cx="47" cy="60" r="7" fill="#17202a"/>
+	<circle cx="81" cy="60" r="7" fill="#17202a"/>
+	<circle cx="44" cy="57" r="2.5" fill="#ffffff"/>
+	<circle cx="78" cy="57" r="2.5" fill="#ffffff"/>
+	<path d="M46 82c10 8 26 8 36 0" fill="none" stroke="#17202a" stroke-width="7" stroke-linecap="round"/>
+	<path d="M25 72h12M91 72h12" stroke="#ef8f72" stroke-width="6" stroke-linecap="round" opacity=".75"/>
 </svg>

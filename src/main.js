@@ -42,14 +42,14 @@ const progressStorageKey = "3d-block-progress-v1";
 // 界面文案集中放在这里，后面继续加语言时比较好维护。
 const translations = {
 	zh: {
-		subtitle: "一个 3D 方块游戏。",
+		subtitle: "在维度之间，找到下一条路。",
 		startGame: "开始游戏",
 		settings: "设置",
 		settingsTitle: "设置",
 		language: "语言",
 		keybinds: "键位设置",
-		moveForward: "前进",
-		moveBackward: "后退",
+		moveForward: "上移 / 爬梯",
+		moveBackward: "下移 / 爬梯",
 		moveLeft: "左移",
 		moveRight: "右移",
 		jump: "跳跃",
@@ -80,14 +80,14 @@ const translations = {
 		returnedToCheckpoint: "已返回存档点",
 	},
 	en: {
-		subtitle: "A 3D block game.",
+		subtitle: "Find the next path between dimensions.",
 		startGame: "Start Game",
 		settings: "Settings",
 		settingsTitle: "Settings",
 		language: "Language",
 		keybinds: "Keybinds",
-		moveForward: "Move Forward",
-		moveBackward: "Move Backward",
+		moveForward: "Up / Climb",
+		moveBackward: "Down / Climb",
 		moveLeft: "Move Left",
 		moveRight: "Move Right",
 		jump: "Jump",
@@ -168,7 +168,7 @@ const physics = {
 	jumpSpeed: 11.5,
 	moveSpeed: 7.2,
 	groundAcceleration: 68,
-	groundDeceleration: 86,
+	groundDeceleration: 120,
 	airAcceleration: 28,
 	airTurnAcceleration: 42,
 	airDeceleration: 7,
@@ -264,11 +264,14 @@ scene.add(keyLightTarget);
 
 const textureLoader = new THREE.TextureLoader();
 const textures = {
-	player: loadGameTexture("./src/player.svg"),
-	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg"),
-	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg"),
-	checkpoint: loadGameTexture("./src/checkpoint.svg"),
-	unactCheckpoint: loadGameTexture("./src/unact_checkpoint.svg")
+	player: loadGameTexture("./src/player.svg?v=2"),
+	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg?v=2"),
+	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg?v=2"),
+	checkpoint: loadGameTexture("./src/checkpoint.svg?v=2"),
+	unactCheckpoint: loadGameTexture("./src/unact_checkpoint.svg?v=2"),
+	bounceSurface: loadGameTexture("./src/bounce-surface.svg"),
+	switchSurface: loadGameTexture("./src/switch-surface.svg"),
+	doorSurface: loadGameTexture("./src/door-surface.svg"),
 };
 
 // ===== 玩家与地图材质 =====
@@ -286,13 +289,39 @@ player.mesh.castShadow = false;
 scene.add(player.mesh);
 
 const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughness: 0.66 });
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });
-const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0xff4545, roughness: 0.55 });
-const ladderMaterial = new THREE.MeshStandardMaterial({ color: 0xffcf24, roughness: 0.5 });
-const bounceMaterial = new THREE.MeshStandardMaterial({ color: 0x32d66f, transparent: true, opacity: 0.72, roughness: 0.45 });
-const switchMaterial = new THREE.MeshStandardMaterial({ color: 0xb455c8, roughness: 0.48 });
-const switchPressedMaterial = new THREE.MeshStandardMaterial({ color: 0x7f3d91, roughness: 0.55 });
-const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x9937b8, transparent: true, opacity: 0.86, roughness: 0.5 });
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0xf04444, roughness: 0.48 });
+const spikeHighlightMaterial = new THREE.MeshStandardMaterial({ color: 0xff7770, roughness: 0.42 });
+const spikeBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x8f2227, roughness: 0.7 });
+const ladderMaterial = new THREE.MeshStandardMaterial({
+	color: 0xffcc32,
+	roughness: 0.36,
+	metalness: 0.24,
+});
+const bounceMaterial = new THREE.MeshStandardMaterial({
+	color: 0xffffff,
+	map: textures.bounceSurface,
+	roughness: 0.38,
+});
+const bounceBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x126f3d, roughness: 0.7 });
+const switchMaterial = new THREE.MeshStandardMaterial({
+	color: 0xffffff,
+	map: textures.switchSurface,
+	roughness: 0.42,
+});
+const switchPressedMaterial = new THREE.MeshStandardMaterial({ color: 0x7d358d, roughness: 0.56 });
+const switchBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x52215e, roughness: 0.72 });
+const doorMaterial = new THREE.MeshStandardMaterial({
+	color: 0xffffff,
+	map: textures.doorSurface,
+	transparent: true,
+	opacity: 0.92,
+	roughness: 0.46,
+});
+const doorFrameMaterial = new THREE.MeshStandardMaterial({
+	color: 0x3f174d,
+	roughness: 0.52,
+	metalness: 0.18,
+});
 const backLineMaterial = new THREE.LineBasicMaterial({ color: 0x243346, transparent: true, opacity: 0.5 });
 const shadowPlane = new THREE.Mesh(
 	new THREE.PlaneGeometry(shadowPlaneBaseSize.width, shadowPlaneBaseSize.height),
@@ -441,14 +470,33 @@ function buildMap(mapData) {
 	levelSwitches.length = 0;
 	levelDoors.length = 0;
 
-	mapData.blocks.forEach((blockData) => {
-		const block = normalizeBlock(blockData);
-		const mesh = new THREE.Mesh(
-			new THREE.BoxGeometry(block.w, block.h, block.d),
-			getBlockMaterial(block),
-		);
-		mesh.position.set(block.x, block.y, block.z);
-		scene.add(mesh);
+	const blocks = mapData.blocks.map(normalizeBlock);
+	const visualMeshes = new Map();
+
+	blocks.forEach((block) => {
+		let mesh = null;
+
+		if (block.visualGroup) {
+			mesh = visualMeshes.get(block.visualGroup) || null;
+
+			if (!mesh) {
+				const groupBlocks = blocks.filter((candidate) => candidate.visualGroup === block.visualGroup);
+				const left = Math.min(...groupBlocks.map((candidate) => candidate.x - candidate.w / 2));
+				const right = Math.max(...groupBlocks.map((candidate) => candidate.x + candidate.w / 2));
+				const visualBlock = {
+					...block,
+					x: (left + right) / 2,
+					w: right - left,
+				};
+
+				mesh = createBlockMesh(visualBlock);
+				visualMeshes.set(block.visualGroup, mesh);
+				scene.add(mesh);
+			}
+		} else {
+			mesh = createBlockMesh(block);
+			scene.add(mesh);
+		}
 
 		levelBlocks.push({
 			...block,
@@ -467,24 +515,42 @@ function buildMap(mapData) {
 	updateViewPresentation();
 }
 
+function createBlockMesh(block) {
+	const mesh = new THREE.Mesh(
+		new THREE.BoxGeometry(block.w, block.h, block.d),
+		getBlockMaterial(block),
+	);
+
+	mesh.position.set(block.x, block.y, block.z);
+	return mesh;
+}
+
 function buildHazards(hazards) {
 	hazards.forEach((hazardData, index) => {
-		const hazard = normalizeArea(hazardData, `hazard-${index + 1}`);
+		const hazard = normalizeArea(hazardData, "hazard-" + (index + 1));
 		const group = new THREE.Group();
 		const count = Math.max(2, Math.round(hazard.w / 0.7));
 		const spacing = hazard.w / count;
+		const baseHeight = Math.min(0.12, hazard.h * 0.18);
+		const base = new THREE.Mesh(
+			new THREE.BoxGeometry(hazard.w, baseHeight, Math.min(hazard.d, 0.9)),
+			spikeBaseMaterial,
+		);
+
+		base.position.set(hazard.x, hazard.y - hazard.h / 2 + baseHeight / 2, hazard.z ?? 0);
+		group.add(base);
 
 		for (let spikeIndex = 0; spikeIndex < count; spikeIndex += 1) {
 			const spike = new THREE.Mesh(
-				new THREE.ConeGeometry(spacing * 0.42, hazard.h, 3),
-				spikeMaterial,
+				new THREE.ConeGeometry(spacing * 0.46, hazard.h, 4),
+				spikeIndex % 2 === 0 ? spikeMaterial : spikeHighlightMaterial,
 			);
 			spike.position.set(
 				hazard.x - hazard.w / 2 + spacing * (spikeIndex + 0.5),
 				hazard.y,
 				hazard.z ?? 0,
 			);
-			spike.rotation.y = Math.PI / 6;
+			spike.rotation.y = Math.PI / 4;
 			group.add(spike);
 		}
 
@@ -500,24 +566,31 @@ function buildHazards(hazards) {
 
 function buildLadders(ladders) {
 	ladders.forEach((ladderData, index) => {
-		const ladder = normalizeArea(ladderData, `ladder-${index + 1}`);
+		const ladder = normalizeArea(ladderData, "ladder-" + (index + 1));
 		const group = new THREE.Group();
-		const railWidth = Math.min(0.12, ladder.w / 4);
-		const leftRail = new THREE.Mesh(new THREE.BoxGeometry(railWidth, ladder.h, 0.18), ladderMaterial);
-		const rightRail = new THREE.Mesh(new THREE.BoxGeometry(railWidth, ladder.h, 0.18), ladderMaterial);
-		const rungCount = Math.max(3, Math.floor(ladder.h / 0.55));
+		const railRadius = Math.min(0.08, ladder.w * 0.12);
+		const leftRail = new THREE.Mesh(
+			new THREE.CylinderGeometry(railRadius, railRadius, ladder.h, 12),
+			ladderMaterial,
+		);
+		const rightRail = leftRail.clone();
+		const rungCount = Math.max(4, Math.floor(ladder.h / 0.5));
 
 		leftRail.position.set(ladder.x - ladder.w / 2, ladder.y, ladder.z ?? 0.12);
 		rightRail.position.set(ladder.x + ladder.w / 2, ladder.y, ladder.z ?? 0.12);
 		group.add(leftRail, rightRail);
 
 		for (let rungIndex = 0; rungIndex < rungCount; rungIndex += 1) {
-			const rung = new THREE.Mesh(new THREE.BoxGeometry(ladder.w, railWidth, 0.18), ladderMaterial);
+			const rung = new THREE.Mesh(
+				new THREE.CylinderGeometry(railRadius * 0.82, railRadius * 0.82, ladder.w, 10),
+				ladderMaterial,
+			);
 			rung.position.set(
 				ladder.x,
 				ladder.y - ladder.h / 2 + (ladder.h / (rungCount + 1)) * (rungIndex + 1),
 				ladder.z ?? 0.12,
 			);
+			rung.rotation.z = Math.PI / 2;
 			group.add(rung);
 		}
 
@@ -528,50 +601,100 @@ function buildLadders(ladders) {
 
 function buildBounceZones(zones) {
 	zones.forEach((zoneData, index) => {
-		const zone = normalizeArea(zoneData, `bounce-${index + 1}`);
-		const mesh = new THREE.Mesh(new THREE.BoxGeometry(zone.w, zone.h, zone.d), bounceMaterial);
+		const zone = normalizeArea(zoneData, "bounce-" + (index + 1));
+		const group = new THREE.Group();
+		const base = new THREE.Mesh(
+			new THREE.BoxGeometry(zone.w, zone.h, zone.d),
+			bounceBaseMaterial,
+		);
+		const surfaceHeight = Math.min(0.11, zone.h * 0.45);
+		const surface = new THREE.Mesh(
+			new THREE.BoxGeometry(Math.max(0.1, zone.w - 0.14), surfaceHeight, zone.d + 0.04),
+			bounceMaterial,
+		);
 
-		mesh.position.set(zone.x, zone.y, zone.z ?? 0.18);
-		scene.add(mesh);
+		base.position.set(zone.x, zone.y, zone.z ?? 0.18);
+		surface.position.set(
+			zone.x,
+			zone.y + zone.h / 2 - surfaceHeight / 2 + 0.01,
+			(zone.z ?? 0.18) + 0.02,
+		);
+		group.add(base, surface);
+		scene.add(group);
 		levelBounceZones.push({
 			...zone,
 			viewMode: zoneData.viewMode || viewModes.SIDE,
 			jumpSpeed: Number.isFinite(zoneData.jumpSpeed) ? zoneData.jumpSpeed : 18,
-			mesh,
+			mesh: group,
 		});
 	});
 }
 
 function buildSwitches(switches) {
 	switches.forEach((switchData, index) => {
-		const switchArea = normalizeArea(switchData, `switch-${index + 1}`);
-		const mesh = new THREE.Mesh(new THREE.BoxGeometry(switchArea.w, switchArea.h, switchArea.d), switchMaterial);
+		const switchArea = normalizeArea(switchData, "switch-" + (index + 1));
+		const group = new THREE.Group();
+		const baseHeight = Math.max(0.12, switchArea.h * 0.48);
+		const base = new THREE.Mesh(
+			new THREE.BoxGeometry(switchArea.w + 0.18, baseHeight, switchArea.d + 0.12),
+			switchBaseMaterial,
+		);
+		const surface = new THREE.Mesh(
+			new THREE.BoxGeometry(switchArea.w, switchArea.h, switchArea.d),
+			switchMaterial,
+		);
 
-		mesh.position.set(switchArea.x, switchArea.y, switchArea.z ?? 0.45);
-		scene.add(mesh);
+		base.position.set(
+			switchArea.x,
+			switchArea.y - switchArea.h / 2 + baseHeight / 2,
+			switchArea.z ?? 0.45,
+		);
+		surface.position.set(switchArea.x, switchArea.y, (switchArea.z ?? 0.45) + 0.02);
+		group.add(base, surface);
+		scene.add(group);
 		levelSwitches.push({
 			...switchArea,
 			opens: switchData.opens,
 			openDuration: Number.isFinite(switchData.openDuration) ? switchData.openDuration : 4,
 			requiresGravity: switchData.requiresGravity !== false,
 			pressed: false,
-			mesh,
+			surface,
+			mesh: group,
 		});
 	});
 }
 
 function buildDoors(doors) {
 	doors.forEach((doorData, index) => {
-		const door = normalizeArea(doorData, `door-${index + 1}`);
-		const mesh = new THREE.Mesh(new THREE.BoxGeometry(door.w, door.h, door.d), doorMaterial);
+		const door = normalizeArea(doorData, "door-" + (index + 1));
+		const group = new THREE.Group();
+		const panel = new THREE.Mesh(
+			new THREE.BoxGeometry(door.w, door.h, door.d),
+			doorMaterial,
+		);
+		const frameWidth = Math.min(0.14, door.w * 0.42);
+		const leftFrame = new THREE.Mesh(
+			new THREE.BoxGeometry(frameWidth, door.h + 0.16, door.d + 0.12),
+			doorFrameMaterial,
+		);
+		const rightFrame = leftFrame.clone();
+		const topFrame = new THREE.Mesh(
+			new THREE.BoxGeometry(door.w + frameWidth * 2, frameWidth, door.d + 0.12),
+			doorFrameMaterial,
+		);
 
-		mesh.position.set(door.x, door.y, door.z ?? 0);
-		scene.add(mesh);
+		panel.position.set(door.x, door.y, door.z ?? 0);
+		leftFrame.position.set(door.x - door.w / 2 - frameWidth / 2, door.y, door.z ?? 0);
+		rightFrame.position.set(door.x + door.w / 2 + frameWidth / 2, door.y, door.z ?? 0);
+		topFrame.position.set(door.x, door.y + door.h / 2 + frameWidth / 2, door.z ?? 0);
+		group.add(panel, leftFrame, rightFrame, topFrame);
+		scene.add(group);
 		levelDoors.push({
 			...door,
 			open: doorData.closed === false,
 			openTimer: doorData.closed === false ? Infinity : 0,
-			mesh,
+			panel,
+			mesh: group,
 		});
 	});
 	refreshDoors();
@@ -650,6 +773,7 @@ function normalizeBlock(blockData) {
 		d: blockData.d ?? (blockData.y <= 0 ? 5 : 3),
 		material: blockData.material || "",
 		collisionView,
+		visualGroup: typeof blockData.visualGroup === "string" ? blockData.visualGroup : "",
 	};
 }
 
@@ -1163,12 +1287,13 @@ function updateGame(deltaTime) {
 }
 
 function updateSideView(deltaTime) {
-	const leftPressed = isActionPressed("moveLeft") || isActionPressed("moveBackward");
-	const rightPressed = isActionPressed("moveRight") || isActionPressed("moveForward");
+	const leftPressed = isActionPressed("moveLeft");
+	const rightPressed = isActionPressed("moveRight");
 	const jumpHeld = isActionPressed("jump");
 	const keyboardInput = Number(rightPressed) - Number(leftPressed);
 	const horizontalInput = Math.abs(touchInput.x) > 0.12 ? touchInput.x : keyboardInput;
-	const ladderInput = getLadderInput(jumpHeld);
+	const activeLadder = getActiveLadder();
+	const ladderInput = getLadderInput(jumpHeld, activeLadder);
 
 	if (player.grounded) {
 		player.coyoteTimer = physics.coyoteTime;
@@ -1199,12 +1324,12 @@ function updateSideView(deltaTime) {
 		}
 	}
 
-	if (getActiveLadder() && ladderInput !== 0) {
+	if (activeLadder && ladderInput !== 0) {
 		player.velocity.y = ladderInput * physics.moveSpeed;
 		player.grounded = false;
 		player.coyoteTimer = physics.coyoteTime;
 		player.jumpBufferTimer = 0;
-	} else if (getActiveLadder() && !jumpHeld) {
+	} else if (activeLadder && !jumpHeld) {
 		player.velocity.y = moveToward(player.velocity.y, 0, physics.groundDeceleration * deltaTime);
 	} else {
 		player.velocity.y = Math.max(player.velocity.y + physics.gravity * deltaTime, physics.maxFallSpeed);
@@ -1220,8 +1345,12 @@ function applySideHorizontalMovement(input, deltaTime) {
 	const targetSpeed = input * physics.moveSpeed;
 
 	if (input === 0) {
-		const deceleration = player.grounded ? physics.groundDeceleration : physics.airDeceleration;
-		player.velocity.x = moveToward(player.velocity.x, 0, deceleration * deltaTime);
+		if (player.grounded) {
+			player.velocity.x = 0;
+			return;
+		}
+
+		player.velocity.x = moveToward(player.velocity.x, 0, physics.airDeceleration * deltaTime);
 		return;
 	}
 
@@ -1418,8 +1547,7 @@ function updateSwitches() {
 
 		if (switchData.pressed !== isPressed) {
 			switchData.pressed = isPressed;
-			switchData.mesh.material = isPressed ? switchPressedMaterial : switchMaterial;
-			switchData.mesh.scale.y = isPressed ? 0.45 : 1;
+			setSwitchVisual(switchData, isPressed);
 			changed = true;
 		}
 
@@ -1432,6 +1560,14 @@ function updateSwitches() {
 		refreshDoors();
 		saveProgress({ showHint: false });
 	}
+}
+
+function setSwitchVisual(switchData, isPressed) {
+	const surface = switchData.surface || switchData.mesh;
+
+	surface.material = isPressed ? switchPressedMaterial : switchMaterial;
+	surface.scale.y = isPressed ? 0.45 : 1;
+	surface.position.y = switchData.y - (isPressed ? switchData.h * 0.275 : 0);
 }
 
 function openDoor(doorId, duration) {
@@ -1468,7 +1604,7 @@ function updateDoors(deltaTime) {
 function refreshDoors() {
 	levelDoors.forEach((door) => {
 		door.mesh.visible = !door.open;
-		door.mesh.material.opacity = door.open ? 0.18 : 0.86;
+		door.panel.material.opacity = door.open ? 0.18 : 0.92;
 	});
 }
 
@@ -1480,8 +1616,8 @@ function getActiveLadder() {
 	return levelLadders.find((ladder) => isAreaOverlapping(ladder)) || null;
 }
 
-function getLadderInput(jumpHeld) {
-	if (!getActiveLadder()) {
+function getLadderInput(jumpHeld, activeLadder = getActiveLadder()) {
+	if (!activeLadder) {
 		return 0;
 	}
 
@@ -1521,11 +1657,11 @@ function applyWorldSave(worldSave) {
 	});
 	levelSwitches.forEach((switchData) => {
 		switchData.pressed = pressedSwitches.has(switchData.id);
-		switchData.mesh.material = switchData.pressed ? switchPressedMaterial : switchMaterial;
-		switchData.mesh.scale.y = switchData.pressed ? 0.45 : 1;
+		setSwitchVisual(switchData, switchData.pressed);
 	});
 	refreshDoors();
 }
+
 // ===== 简单 AABB 碰撞 =====
 function moveAndCollide(deltaTime) {
 	const previousXPosition = player.mesh.position.clone();
