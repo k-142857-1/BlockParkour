@@ -1,0 +1,280 @@
+{
+	"id": "map-1",
+	"name": "Sketch Map 1",
+	"spawn": {
+		"x": -24,
+		"y": 1.05,
+		"z": 0,
+		"viewMode": "side"
+	},
+	"camera": {
+		"height": 9
+	},
+	"blocks": [
+		{
+			"id": "start-platform",
+			"x": -24,
+			"y": 0,
+			"w": 7.2,
+			"h": 0.55,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "small-step-1",
+			"x": -16,
+			"y": 1.05,
+			"w": 0.75,
+			"h": 0.4,
+			"d": 3
+		},
+		{
+			"id": "small-step-2",
+			"x": -12.2,
+			"y": 1.9,
+			"w": 0.85,
+			"h": 0.4,
+			"d": 3
+		},
+		{
+			"id": "small-step-3",
+			"x": -8.7,
+			"y": 1.35,
+			"w": 0.85,
+			"h": 0.4,
+			"d": 3
+		},
+		{
+			"id": "spike-floor-left",
+			"x": -2.2,
+			"y": -1.05,
+			"w": 5.8,
+			"h": 0.45,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "left-climb-wall",
+			"x": 2.35,
+			"y": 1.45,
+			"w": 0.5,
+			"h": 5.1,
+			"d": 4
+		},
+		{
+			"id": "left-top-hook",
+			"x": 0.9,
+			"y": 3.75,
+			"w": 2.8,
+			"h": 0.45,
+			"d": 4
+		},
+		{
+			"id": "tunnel-floor",
+			"x": 7.6,
+			"y": -1.05,
+			"w": 10.2,
+			"h": 0.45,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "low-tunnel-ceiling",
+			"x": 7.15,
+			"y": 0.05,
+			"w": 8.5,
+			"h": 0.6,
+			"d": 4
+		},
+		{
+			"id": "tunnel-front-lip",
+			"x": 2.95,
+			"y": -0.45,
+			"w": 0.6,
+			"h": 1.2,
+			"d": 4
+		},
+		{
+			"id": "ladder-landing",
+			"x": 5.7,
+			"y": -0.1,
+			"w": 4.1,
+			"h": 0.42,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "button-floor",
+			"x": 15.6,
+			"y": -1.05,
+			"w": 8.2,
+			"h": 0.45,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "right-climb-left-wall",
+			"x": 20.8,
+			"y": 1.25,
+			"w": 0.5,
+			"h": 3.5,
+			"d": 4
+		},
+		{
+			"id": "right-upper-platform",
+			"x": 25.6,
+			"y": 2.85,
+			"w": 9.4,
+			"h": 0.45,
+			"d": 4
+		},
+		{
+			"id": "goal-floor",
+			"x": 31.2,
+			"y": -1.05,
+			"w": 10.8,
+			"h": 0.45,
+			"d": 4,
+			"material": "ground"
+		},
+		{
+			"id": "goal-right-wall",
+			"x": 36.2,
+			"y": 1.3,
+			"w": 0.5,
+			"h": 4.9,
+			"d": 4
+		}
+	],
+	"gems": [
+		{
+			"id": "blue-gem-left",
+			"type": "topToSide",
+			"x": -12.2,
+			"y": 2.75,
+			"z": 0.8
+		},
+		{
+			"id": "red-gem-spikes",
+			"type": "sideToTop",
+			"x": -2.2,
+			"y": 1.15,
+			"z": 0.8
+		},
+		{
+			"id": "red-gem-ladder",
+			"type": "sideToTop",
+			"x": 6.1,
+			"y": 2.35,
+			"z": 0.8
+		},
+		{
+			"id": "blue-gem-upper",
+			"type": "topToSide",
+			"x": 24.8,
+			"y": 3.95,
+			"z": 0.8
+		}
+	],
+	"checkpoints": [
+		{
+			"id": "checkpoint-left",
+			"x": -8.7,
+			"y": 1.95,
+			"z": 0.9,
+			"progress": 0
+		},
+		{
+			"id": "checkpoint-middle",
+			"x": 6.3,
+			"y": 0.55,
+			"z": 0.9,
+			"progress": 1
+		},
+		{
+			"id": "checkpoint-upper",
+			"x": 28.6,
+			"y": 3.45,
+			"z": 0.9,
+			"progress": 2
+		}
+	],
+	"hazards": [
+		{
+			"id": "side-spikes-bottom",
+			"type": "spikes",
+			"viewMode": "side",
+			"x": -2.25,
+			"y": -0.32,
+			"w": 4.5,
+			"h": 1,
+			"damage": "death"
+		},
+		{
+			"id": "side-spikes-landing",
+			"type": "spikes",
+			"viewMode": "side",
+			"x": 5.8,
+			"y": 0.38,
+			"w": 2.6,
+			"h": 0.85,
+			"damage": "death"
+		}
+	],
+	"ladders": [
+		{
+			"id": "left-yellow-ladder",
+			"x": 3.05,
+			"y": 1.55,
+			"w": 0.7,
+			"h": 4.55,
+			"z": 0.22
+		},
+		{
+			"id": "right-yellow-ladder",
+			"x": 34.2,
+			"y": 1.05,
+			"w": 0.7,
+			"h": 4.55,
+			"z": 0.22
+		}
+	],
+	"bounceZones": [
+		{
+			"id": "green-bounce",
+			"x": 13.7,
+			"y": -0.4,
+			"w": 5.2,
+			"h": 0.55,
+			"z": 0.25,
+			"viewMode": "side",
+			"jumpSpeed": 18
+		}
+	],
+	"switches": [
+		{
+			"id": "purple-pressure-button",
+			"type": "pressure",
+			"x": 18.5,
+			"y": -0.35,
+			"w": 1.1,
+			"h": 0.35,
+			"z": 0.45,
+			"requiresGravity": true,
+			"openDuration": 4,
+			"opens": "purple-door"
+		}
+	],
+	"doors": [
+		{
+			"id": "purple-door",
+			"x": 20.3,
+			"y": 0.55,
+			"w": 0.38,
+			"h": 2.7,
+			"d": 4,
+			"color": "purple",
+			"closed": true
+		}
+	]
+}
