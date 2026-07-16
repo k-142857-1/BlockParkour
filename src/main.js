@@ -168,7 +168,8 @@ const physics = {
 	jumpSpeed: 11.5,
 	moveSpeed: 7.2,
 	groundAcceleration: 68,
-	groundDeceleration: 120,
+	groundDeceleration: 36,
+	ladderDeceleration: 120,
 	airAcceleration: 28,
 	airTurnAcceleration: 42,
 	airDeceleration: 7,
@@ -267,8 +268,8 @@ const textures = {
 	player: loadGameTexture("./src/player.svg?v=2"),
 	sideToTopGem: loadGameTexture("./src/gem-side-to-top.svg?v=2"),
 	topToSideGem: loadGameTexture("./src/gem-top-to-side.svg?v=2"),
-	checkpoint: loadGameTexture("./src/checkpoint.svg?v=2"),
-	unactCheckpoint: loadGameTexture("./src/unact_checkpoint.svg?v=2"),
+	checkpoint: loadGameTexture("./src/checkpoint.svg?v=3"),
+	unactCheckpoint: loadGameTexture("./src/unact_checkpoint.svg?v=3"),
 	bounceSurface: loadGameTexture("./src/bounce-surface.svg"),
 	switchSurface: loadGameTexture("./src/switch-surface.svg"),
 	doorSurface: loadGameTexture("./src/door-surface.svg"),
@@ -289,7 +290,8 @@ player.mesh.castShadow = false;
 scene.add(player.mesh);
 
 const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x57d6ff, roughness: 0.66 });
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0xf04444, roughness: 0.48 });
+const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x283241, roughness: 0.82 });
+const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0xf04444, roughness: 0.48 });
 const spikeHighlightMaterial = new THREE.MeshStandardMaterial({ color: 0xff7770, roughness: 0.42 });
 const spikeBaseMaterial = new THREE.MeshStandardMaterial({ color: 0x8f2227, roughness: 0.7 });
 const ladderMaterial = new THREE.MeshStandardMaterial({
@@ -1330,7 +1332,7 @@ function updateSideView(deltaTime) {
 		player.coyoteTimer = physics.coyoteTime;
 		player.jumpBufferTimer = 0;
 	} else if (activeLadder && !jumpHeld) {
-		player.velocity.y = moveToward(player.velocity.y, 0, physics.groundDeceleration * deltaTime);
+		player.velocity.y = moveToward(player.velocity.y, 0, physics.ladderDeceleration * deltaTime);
 	} else {
 		player.velocity.y = Math.max(player.velocity.y + physics.gravity * deltaTime, physics.maxFallSpeed);
 	}
@@ -1346,7 +1348,11 @@ function applySideHorizontalMovement(input, deltaTime) {
 
 	if (input === 0) {
 		if (player.grounded) {
-			player.velocity.x = 0;
+			player.velocity.x = moveToward(
+				player.velocity.x,
+				0,
+				physics.groundDeceleration * deltaTime,
+			);
 			return;
 		}
 
