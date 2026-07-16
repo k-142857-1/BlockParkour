@@ -181,6 +181,7 @@ const cameraDistance = 18;
 const progressAutoSaveInterval = 8000;
 const gemSize = 0.78;
 const checkpointSize = 1.12;
+const collisionTolerance = 0.00001;
 
 // map.json 读取失败时使用这份备用地图，避免页面直接空白。
 const fallbackMap = {
@@ -634,6 +635,11 @@ function buildCheckpoints(checkpoints) {
 }
 
 function normalizeBlock(blockData) {
+	const collisionView =
+		blockData.collisionView === viewModes.SIDE || blockData.collisionView === viewModes.TOP
+			? blockData.collisionView
+			: null;
+
 	return {
 		id: blockData.id || "block",
 		x: blockData.x,
@@ -642,6 +648,8 @@ function normalizeBlock(blockData) {
 		w: blockData.w,
 		h: blockData.h,
 		d: blockData.d ?? (blockData.y <= 0 ? 5 : 3),
+		material: blockData.material || "",
+		collisionView,
 	};
 }
 
@@ -659,12 +667,18 @@ function normalizeGem(gemData, index) {
 }
 
 function normalizeCheckpoint(checkpointData, index) {
+	const respawn = checkpointData.respawn || {};
+
 	return {
 		id: checkpointData.id || `checkpoint-${index + 1}`,
 		progressIndex: Number.isFinite(checkpointData.progress) ? checkpointData.progress : index,
 		x: checkpointData.x,
 		y: checkpointData.y,
 		z: checkpointData.z ?? 0.9,
+		respawnX: Number.isFinite(respawn.x) ? respawn.x : checkpointData.x,
+		respawnY: Number.isFinite(respawn.y) ? respawn.y : checkpointData.y,
+		respawnZ: Number.isFinite(respawn.z) ? respawn.z : 0,
+		respawnViewMode: respawn.viewMode === viewModes.TOP ? viewModes.TOP : viewModes.SIDE,
 	};
 }
 
@@ -1236,11 +1250,14 @@ function updateTopView(deltaTime) {
 	player.velocity.y = inputY * physics.moveSpeed;
 	player.velocity.z = 0;
 
+	const previousXPosition = player.mesh.position.clone();
+
 	player.mesh.position.x += player.velocity.x * deltaTime;
-	resolveTopCollisions("x");
+	resolveTopCollisions("x", previousXPosition);
+	const previousYPosition = player.mesh.position.clone();
 
 	player.mesh.position.y += player.velocity.y * deltaTime;
-	resolveTopCollisions("y");
+	resolveTopCollisions("y", previousYPosition);
 }
 
 function centerCameraOnPlayer() {
@@ -1476,7 +1493,7 @@ function getLadderInput(jumpHeld) {
 
 function getSolidBlocks() {
 	return [
-		...levelBlocks,
+		...levelBlocks.filter((block) => !block.collisionView || block.collisionView === viewMode),
 		...levelDoors.filter((door) => !door.open),
 	];
 }
@@ -1511,20 +1528,24 @@ function applyWorldSave(worldSave) {
 }
 // ===== 简单 AABB 碰撞 =====
 function moveAndCollide(deltaTime) {
+	const previousXPosition = player.mesh.position.clone();
+
 	player.mesh.position.x += player.velocity.x * deltaTime;
-	resolveCollisions("x");
+	resolveCollisions("x", previousXPosition);
+	const previousYPosition = player.mesh.position.clone();
 
 	player.mesh.position.y += player.velocity.y * deltaTime;
 	player.grounded = false;
-	resolveCollisions("y");
+	resolveCollisions("y", previousYPosition);
 }
 
-function resolveCollisions(axis) {
+function resolveCollisions(axis, previousPosition) {
 	getSolidBlocks().forEach((block) => {
 		if (!isOverlapping(player.mesh.position, block)) {
 			return;
 		}
 
+		const previousBounds = getPlayerBounds(previousPosition);
 		const halfPlayerWidth = playerSize.width / 2;
 		const halfPlayerHeight = playerSize.height / 2;
 		const blockLeft = block.x - block.w / 2;
@@ -1533,49 +1554,58 @@ function resolveCollisions(axis) {
 		const blockBottom = block.y - block.h / 2;
 
 		if (axis === "x") {
-			if (player.velocity.x > 0) {
+			if (player.velocity.x > 0 && previousBounds.right <= blockLeft + collisionTolerance) {
 				player.mesh.position.x = blockLeft - halfPlayerWidth;
-			} else if (player.velocity.x < 0) {
+			} else if (player.velocity.x < 0 && previousBounds.left >= blockRight - collisionTolerance) {
 				player.mesh.position.x = blockRight + halfPlayerWidth;
+			} else {
+				return;
 			}
 			player.velocity.x = 0;
 			return;
 		}
 
-		if (player.velocity.y <= 0) {
+		if (player.velocity.y <= 0 && previousBounds.bottom >= blockTop - collisionTolerance) {
 			player.mesh.position.y = blockTop + halfPlayerHeight;
 			player.grounded = true;
-		} else {
+		} else if (player.velocity.y > 0 && previousBounds.top <= blockBottom + collisionTolerance) {
 			player.mesh.position.y = blockBottom - halfPlayerHeight;
+		} else {
+			return;
 		}
 		player.velocity.y = 0;
 	});
 }
 
-function resolveTopCollisions(axis) {
+function resolveTopCollisions(axis, previousPosition) {
 	getSolidBlocks().forEach((block) => {
 		if (!isTopBlockingOverlap(player.mesh.position, block)) {
 			return;
 		}
 
 		const bounds = getBlockBounds(block);
+		const previousBounds = getPlayerBounds(previousPosition);
 		const halfPlayerWidth = playerSize.width / 2;
 		const halfPlayerHeight = playerSize.height / 2;
 
 		if (axis === "x") {
-			if (player.velocity.x > 0) {
+			if (player.velocity.x > 0 && previousBounds.right <= bounds.left + collisionTolerance) {
 				player.mesh.position.x = bounds.left - halfPlayerWidth;
-			} else if (player.velocity.x < 0) {
+			} else if (player.velocity.x < 0 && previousBounds.left >= bounds.right - collisionTolerance) {
 				player.mesh.position.x = bounds.right + halfPlayerWidth;
+			} else {
+				return;
 			}
 			player.velocity.x = 0;
 			return;
 		}
 
-		if (player.velocity.y > 0) {
+		if (player.velocity.y > 0 && previousBounds.top <= bounds.bottom + collisionTolerance) {
 			player.mesh.position.y = bounds.bottom - halfPlayerHeight;
-		} else if (player.velocity.y < 0) {
+		} else if (player.velocity.y < 0 && previousBounds.bottom >= bounds.top - collisionTolerance) {
 			player.mesh.position.y = bounds.top + halfPlayerHeight;
+		} else {
+			return;
 		}
 		player.velocity.y = 0;
 	});
@@ -1673,10 +1703,7 @@ function activateCheckpoints() {
 		lastCheckpoint = {
 			id: checkpoint.id,
 			progressIndex: checkpoint.progressIndex,
-			x: checkpoint.x,
-			y: checkpoint.y,
-			z: 0,
-			viewMode,
+			...getCheckpointRespawn(checkpoint, viewMode),
 		};
 
 		showSaveHint(translations[settings.language].checkpointReached);
@@ -2165,6 +2192,16 @@ function normalizeSavedCheckpoint(checkpoint) {
 		};
 	}
 
+	const mappedCheckpoint = levelCheckpoints.find((levelCheckpoint) => levelCheckpoint.id === checkpoint.id);
+
+	if (mappedCheckpoint) {
+		return {
+			id: mappedCheckpoint.id,
+			progressIndex: mappedCheckpoint.progressIndex,
+			...getCheckpointRespawn(mappedCheckpoint, checkpoint.viewMode),
+		};
+	}
+
 	return {
 		id: checkpoint.id || "checkpoint",
 		progressIndex: Number.isFinite(checkpoint.progressIndex)
@@ -2201,10 +2238,19 @@ function getFurthestProgressCheckpoint(savedCheckpoint, activatedIds, fallbackVi
 	return {
 		id: furthestCheckpoint.id,
 		progressIndex: furthestCheckpoint.progressIndex,
-		x: furthestCheckpoint.x,
-		y: furthestCheckpoint.y,
-		z: 0,
-		viewMode: fallbackViewMode,
+		...getCheckpointRespawn(furthestCheckpoint, fallbackViewMode),
+	};
+}
+
+function getCheckpointRespawn(checkpoint, fallbackViewMode = viewModes.SIDE) {
+	return {
+		x: checkpoint.respawnX,
+		y: checkpoint.respawnY,
+		z: checkpoint.respawnZ,
+		viewMode:
+			checkpoint.respawnViewMode === viewModes.TOP || checkpoint.respawnViewMode === viewModes.SIDE
+				? checkpoint.respawnViewMode
+				: fallbackViewMode,
 	};
 }
 
